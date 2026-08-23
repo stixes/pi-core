@@ -75,7 +75,9 @@ jobs:
         # --new-bundle-format / --use-signing-config flags used below, while
         # installer v3 cannot verify a 3.x release (3.x ships .sigstore.json
         # bundles, v3 of the installer looks for a detached .sig).
-        uses: sigstore/cosign-installer@v4
+        # NB: this action publishes no floating v4 tag (only v3 and exact
+        # v4.x.y), so pin the SHA. This one is v4.1.2.
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: 'v3.1.2'
 
