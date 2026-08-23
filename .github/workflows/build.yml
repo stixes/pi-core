@@ -71,11 +71,19 @@ jobs:
       - name: Install cosign
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3
+        with:
+          # Must be 3.x: the --new-bundle-format / --use-signing-config flags
+          # below do not exist in cosign 2.x, which is what this action
+          # installs by default.
+          cosign-release: 'v3.1.2'
 
       - name: Sign image
         if: github.event_name != 'pull_request'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          # The key is encrypted with an empty passphrase; cosign still needs
+          # to be told, or it tries to prompt and fails on a runner.
+          COSIGN_PASSWORD: ""
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           # Old bundle format: rpm-ostree/containers-policy cannot read the new
