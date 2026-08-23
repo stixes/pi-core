@@ -37,7 +37,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Load build parameters
-        run: cat pi-core.env >> "$GITHUB_ENV"
+        # $GITHUB_ENV accepts only bare KEY=value lines, so strip comments
+        # and blanks rather than cat'ing the file wholesale.
+        run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' pi-core.env >> "$GITHUB_ENV"
 
       - name: Build image
         run: |
