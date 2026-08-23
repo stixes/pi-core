@@ -3,7 +3,8 @@
 A custom [uCore](https://github.com/ublue-os/ucore) derivative for Raspberry Pi,
 for my personal homelab.
 
-**Status: prototype.** Nothing here has booted real hardware yet.
+**Status: prototype.** CI builds, signs and publishes
+`ghcr.io/stixes/pi-core:stable`, but nothing here has booted real hardware yet.
 
 ## How it works
 
