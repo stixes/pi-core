@@ -70,11 +70,13 @@ jobs:
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3
+        # Installer v4 + cosign v3.1.2 is a matched pair, and the pairing is
+        # load-bearing in both directions: cosign 2.x lacks the
+        # --new-bundle-format / --use-signing-config flags used below, while
+        # installer v3 cannot verify a 3.x release (3.x ships .sigstore.json
+        # bundles, v3 of the installer looks for a detached .sig).
+        uses: sigstore/cosign-installer@v4
         with:
-          # Must be 3.x: the --new-bundle-format / --use-signing-config flags
-          # below do not exist in cosign 2.x, which is what this action
-          # installs by default.
           cosign-release: 'v3.1.2'
 
       - name: Sign image
