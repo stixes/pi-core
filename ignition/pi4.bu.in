@@ -1,0 +1,70 @@
+# pi-core first-boot config for a Raspberry Pi 4 (Fedora CoreOS aarch64).
+#
+# Template: scripts/render-ignition.sh substitutes @SSH_PUBKEY@, @HOSTNAME@
+# and @IMAGE@. Do not edit the rendered .ign by hand.
+variant: fcos
+version: 1.5.0
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - "@SSH_PUBKEY@"
+      groups:
+        - sudo
+        - docker
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: "@HOSTNAME@"
+
+    # Marker so we can tell a rebased host from a plain FCOS one at a glance.
+    - path: /etc/pi-core-provisioned
+      mode: 0644
+      contents:
+        inline: |
+          Provisioned by pi-core ignition for @IMAGE@
+
+  directories:
+    - path: /etc/pi-core-autorebase
+      mode: 0755
+
+systemd:
+  units:
+    # Zincati fights a Universal Blue rebase — learned the hard way on an
+    # existing uCore host. Mask it before the rebase runs and let
+    # rpm-ostreed-automatic stage updates instead.
+    - name: zincati.service
+      mask: true
+
+    - name: rpm-ostreed-automatic.timer
+      enabled: true
+
+    # First boot: rebase onto our uCore derivative, then reboot into it.
+    #
+    # PROTOTYPE: this uses the *unverified* registry transport. Once the image
+    # is cosign-signed and our public key ships in the image's container
+    # policy, add a second-stage unit that re-rebases onto
+    #   ostree-image-signed:docker://@IMAGE@
+    # exactly as ublue's examples/ucore-autorebase.butane does.
+    - name: pi-core-autorebase.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=pi-core autorebase to @IMAGE@ and reboot
+        ConditionPathExists=!/etc/pi-core-autorebase/done
+        After=network-online.target
+        Wants=network-online.target
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        StandardOutput=journal+console
+        ExecStart=/usr/bin/rpm-ostree rebase --bypass-driver ostree-unverified-registry:@IMAGE@
+        ExecStart=/usr/bin/touch /etc/pi-core-autorebase/done
+        ExecStart=/usr/bin/systemctl disable pi-core-autorebase.service
+        ExecStart=/usr/bin/systemctl reboot
+        [Install]
+        WantedBy=multi-user.target

@@ -1,0 +1,83 @@
+#!/bin/bash
+# pi-core-firmware — reconcile Raspberry Pi firmware on the ESP with the copy
+# shipped inside the running pi-core image.
+#
+# Why this exists: bootc updates the OS atomically, but bootupd only manages
+# /boot/efi/EFI. The Pi's firmware, DTBs, config.txt and u-boot.bin live at the
+# ESP root and are therefore NOT updated by `bootc upgrade`. This tool closes
+# that gap manually. It is deliberately not automatic — a bad firmware write
+# bricks the boot, and there is no rollback for it.
+set -euo pipefail
+
+FW_STASH=/usr/lib/pi-core/firmware
+ESP_LABEL=EFI-SYSTEM
+
+die() { echo "pi-core-firmware: $*" >&2; exit 1; }
+
+[[ -d "${FW_STASH}" ]] || die "no firmware stash at ${FW_STASH} — is this a pi-core image?"
+
+esp_device() {
+    blkid -L "${ESP_LABEL}" 2>/dev/null || die "no partition labelled ${ESP_LABEL}"
+}
+
+with_esp() {
+    # Mount the ESP somewhere private so we never fight /boot's ro mount.
+    local mode="$1"; shift
+    local dev mnt
+    dev="$(esp_device)"
+    mnt="$(mktemp -d /tmp/pi-core-esp.XXXXXX)"
+    mount -o "${mode}" "${dev}" "${mnt}"
+    trap 'umount "${mnt}" 2>/dev/null || true; rmdir "${mnt}" 2>/dev/null || true' RETURN
+    "$@" "${mnt}"
+}
+
+do_check() {
+    local mnt="$1" drift=0 f name
+    for f in "${FW_STASH}"/*; do
+        name="$(basename "$f")"
+        [[ "${name}" == ".versions" ]] && continue
+        # config.txt is expected to be locally modified; report but don't count.
+        if [[ ! -e "${mnt}/${name}" ]]; then
+            echo "MISSING on ESP: ${name}"; drift=1
+        elif ! cmp -s "$f" "${mnt}/${name}"; then
+            if [[ "${name}" == "config.txt" ]]; then
+                echo "differs (expected, locally customised): ${name}"
+            else
+                echo "DIFFERS from image: ${name}"; drift=1
+            fi
+        fi
+    done
+    if [[ "${drift}" -eq 0 ]]; then
+        echo "ESP firmware matches the image."
+    else
+        echo
+        echo "ESP firmware is out of step with this image. Review, then run:"
+        echo "    sudo pi-core-firmware sync"
+    fi
+    return 0
+}
+
+do_sync() {
+    local mnt="$1"
+    echo "Syncing firmware to ESP (config.txt preserved if present)..."
+    local f name
+    for f in "${FW_STASH}"/*; do
+        name="$(basename "$f")"
+        [[ "${name}" == ".versions" ]] && continue
+        if [[ "${name}" == "config.txt" && -e "${mnt}/${name}" ]]; then
+            echo "  keeping existing ${name} (new version at ${f})"
+            continue
+        fi
+        cp -a --no-preserve=ownership "$f" "${mnt}/${name}"
+        echo "  wrote ${name}"
+    done
+    sync
+    echo "Done. Reboot to boot the new firmware."
+}
+
+case "${1:-check}" in
+    check)    with_esp ro do_check ;;
+    sync)     [[ "${EUID}" -eq 0 ]] || die "sync needs root"; with_esp rw do_sync ;;
+    versions) cat "${FW_STASH}/.versions" ;;
+    *)        echo "usage: pi-core-firmware {check|sync|versions}" >&2; exit 2 ;;
+esac

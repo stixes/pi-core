@@ -1,0 +1,14 @@
+[Unit]
+Description=pi-core: report Raspberry Pi ESP firmware drift
+Documentation=https://github.com/coreos/bootupd/issues/766
+After=local-fs.target
+ConditionPathExists=/usr/lib/pi-core/firmware
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardOutput=journal+console
+ExecStart=/usr/bin/pi-core-firmware check
+
+[Install]
+WantedBy=multi-user.target

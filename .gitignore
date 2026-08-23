@@ -1,0 +1,4 @@
+build/
+*.ign
+!ignition/*.bu.in
+cosign.key

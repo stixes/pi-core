@@ -1,0 +1,83 @@
+---
+name: Build pi-core
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**']
+  schedule:
+    - cron: '30 5 * * *'   # daily, after uCore's own builds land
+  workflow_dispatch:
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  IMAGE_NAME: pi-core
+  DEFAULT_TAG: stable
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and push (aarch64)
+    # Native arm64 runner — free for public repos. Do NOT switch this to
+    # ubuntu-24.04 without adding qemu-user-static; the build asserts aarch64.
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load build parameters
+        run: cat pi-core.env >> "$GITHUB_ENV"
+
+      - name: Build image
+        run: |
+          podman build \
+            --platform=linux/arm64 \
+            --build-arg BASE_IMAGE="${BASE_IMAGE}" \
+            --build-arg BASE_TAG="${BASE_TAG}" \
+            --build-arg FEDORA_RELEASE="${FEDORA_RELEASE}" \
+            -t "${IMAGE_NAME}:${DEFAULT_TAG}" .
+
+      - name: Lowercase registry
+        run: echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        id: push
+        run: |
+          podman push --digestfile=/tmp/digest \
+            "${IMAGE_NAME}:${DEFAULT_TAG}" \
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}:${DEFAULT_TAG}"
+          echo "digest=$(< /tmp/digest)" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          # Old bundle format: rpm-ostree/containers-policy cannot read the new
+          # one yet (containers/container-libs#388, rpm-ostree#5509).
+          cosign sign -y --new-bundle-format=false --use-signing-config=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}"
