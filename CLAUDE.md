@@ -4,6 +4,11 @@ Custom [uCore](https://github.com/ublue-os/ucore) (Fedora CoreOS) bootc image
 for Raspberry Pi. **Personal project** — personal homelab scope, personal git
 identity (see `git config --local user.email`). No work conventions apply here.
 
+Targets: **Pi 5 primary, Pi 4 supported**, Pi 3 / Zero 2 W explicitly not
+(RAM, not enablement). Model differences that bite: Pi 5 is SD-only and its
+serial console is the debug connector (`ttyAMA10`), not GPIO 14/15
+(`ttyAMA0`).
+
 Published to `ghcr.io/<owner>/pi-core:stable` (public, cosign-signed), where
 `<owner>` is derived by `scripts/repo-owner.sh` — never hardcode it.
 
@@ -51,7 +56,7 @@ just            # list recipes
 just build      # local aarch64 build (qemu on x86; slow but works)
 just test       # tier 0 (static) + tier 1 (image assertions)
 just inspect    # sanity-check the built image
-just ignition   # render build/pi4.ign
+just ignition   # render build/pi.ign
 just flash /dev/sdX   # DESTRUCTIVE
 ```
 

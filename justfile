@@ -25,7 +25,7 @@ inspect:
         echo "== firmware stash =="; ls -1 /usr/lib/pi-core/firmware; \
         echo "== versions =="; cat /usr/lib/pi-core/firmware/.versions'
 
-# Render build/pi4.ign from the butane template
+# Render build/pi.ign from the butane template
 ignition:
     ./scripts/render-ignition.sh
 

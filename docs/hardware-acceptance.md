@@ -17,6 +17,10 @@ Attach the **serial console** (INSTALL.md §8). It is not optional for
 acceptance: checks A1–A3 are invisible without it, and a failure before
 networking leaves no other evidence.
 
+**Check you are on the right UART for the model** — Pi 5 uses the dedicated
+debug connector (`ttyAMA10`), Pi 4 uses GPIO 14/15 (`ttyAMA0`). Silence on the
+wrong one looks exactly like a dead board.
+
 Log the whole session to a file so a failure is diagnosable afterwards:
 
 ```bash
@@ -28,6 +32,7 @@ Record the baseline before powering on:
 | Field | How |
 |---|---|
 | Pi model + board revision | printed on the board / `cat /proc/cpuinfo` later |
+| Which UART was used | debug connector (Pi 5) or GPIO header (Pi 4) |
 | Boot medium | SD card or USB SSD, make and size |
 | EEPROM version | shown during the update in INSTALL.md §1 |
 | Image digest | `skopeo inspect docker://ghcr.io/<owner>/pi-core:stable \| jq -r .Digest` |
@@ -48,6 +53,14 @@ The part nothing else can test. Watch the serial console.
 - [ ] **A5** systemd reaches a login prompt.
 
 Record: seconds from power-on to A1, and to A5.
+
+**Pi 5 specifics.** The Pi 5 path is less travelled than the Pi 4 one, so treat
+these as live questions rather than assumptions:
+
+- [ ] **A6** (Pi 5) Ethernet and USB work — both hang off the RP1 southbridge,
+      so `rp1_pci` loading is the thing being tested. `ip link` and `lsusb`.
+- [ ] **A7** (Pi 5) Record whether thermals/fan behave; fan control was still
+      incomplete in Fedora's Pi 5 support and may simply be absent.
 
 ## B. First-boot provisioning
 
@@ -134,7 +147,7 @@ person can compare against it.
 
 | Stopped at | Look at first |
 |---|---|
-| A1 | EEPROM not updated; or the firmware never reached the ESP (was the card flashed from inside a container?) |
+| A1 | EEPROM not updated; the firmware never reached the ESP (card flashed inside a container?); or, on Pi 5, the wrong serial connector |
 | A2 | `rpi-u-boot.bin` absent or misnamed — `config.txt` must say `kernel=rpi-u-boot.bin` |
 | A3 | GRUB/BLS missing — the FCOS install itself did not complete |
 | A4–A5 | Kernel or initramfs problem; capture the full serial log |

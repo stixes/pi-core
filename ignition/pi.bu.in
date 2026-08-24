@@ -1,4 +1,5 @@
-# pi-core first-boot config for a Raspberry Pi 4 (Fedora CoreOS aarch64).
+# pi-core first-boot config (Fedora CoreOS aarch64). Model-agnostic: nothing
+# here is Pi 4 or Pi 5 specific.
 #
 # Template: scripts/render-ignition.sh substitutes @SSH_PUBKEY@, @HOSTNAME@
 # and @IMAGE@. Do not edit the rendered .ign by hand.

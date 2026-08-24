@@ -41,9 +41,9 @@ headless box. See [docs/design-decisions.md](docs/design-decisions.md).
 | `Containerfile` | `FROM ucore-minimal:stable`, runs `build.sh` |
 | `build_files/build.sh` | Package installs + the firmware stash |
 | `system_files/` | Overlay copied to `/` |
-| `ignition/pi4.bu.in` | Butane template for first boot (autorebase) |
+| `ignition/pi.bu.in` | Butane template for first boot (autorebase) |
 | `scripts/fetch-firmware.sh` | Pull + extract the Pi firmware payload |
-| `scripts/render-ignition.sh` | Template -> `build/pi4.ign` |
+| `scripts/render-ignition.sh` | Template -> `build/pi.ign` |
 | `scripts/flash.sh` | FCOS install + firmware onto the ESP |
 | `.github/workflows/build.yml` | Build, sign, push to GHCR (arm64 runner) |
 | `docs/design-decisions.md` | Why the code looks the way it does |
@@ -54,7 +54,7 @@ headless box. See [docs/design-decisions.md](docs/design-decisions.md).
 ```bash
 just build                      # build locally (qemu on x86; slow but works)
 just inspect                    # sanity-check the built image
-just ignition                   # render build/pi4.ign
+just ignition                   # render build/pi.ign
 just flash /dev/sdX        # DESTRUCTIVE: FCOS + firmware onto a card
 ```
 
@@ -116,6 +116,7 @@ Apache-2.0, matching uCore / Universal Blue upstream.
   in CI) by `scripts/repo-owner.sh`; override with `REPO_ORGANIZATION=...`.
   A fork needs its own `SIGNING_SECRET` and `cosign.pub` — see Signing.
 - No workload yet.
-- Pi 4 is the only target so far. The firmware payload already covers Pi 3 and
-  Pi 5, but neither has been tried; on Pi 5 expect gaps (NVMe boot, thermal,
-  audio) from Fedora's still-landing Pi 5 support.
+- **Pi 5 is the primary target, Pi 4 is supported.** Neither has been booted
+  yet. Pi 5 is SD-card only (U-Boot has no BCM2712 PCIe, so no NVMe boot) and
+  its thermal/fan support is incomplete upstream. Pi 3 / Zero 2 W are not
+  targets — the firmware and DTBs ship, but the RAM does not stretch.

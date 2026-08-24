@@ -29,6 +29,21 @@ The full variant adds storage tooling including `mergerfs`, which has no aarch64
 build. Minimal already carries what a Pi needs: bootc, docker+podman, tailscale,
 cockpit, firewalld.
 
+## Pi 5 primary, Pi 4 supported, Pi 3 not a target
+
+One `bcm283x-firmware` pull covers Pi 3/4/5, so the *payload* is model-agnostic
+and there is no cost to shipping it whole. Targeting is a separate decision:
+
+- **Pi 5** — U-Boot 2026.04 carries `brcm,bcm2712` including `bcm2712-sdhci`,
+  and the image's kernel has `rp1_pci`, `clk-rp1` and `pinctrl-rp1`, so the SD
+  boot path and the RP1 southbridge are both present. No NVMe: U-Boot has no
+  BCM2712 PCIe yet.
+- **Pi 4** — the model Fedora CoreOS actually documents; kept as the reference
+  path.
+- **Pi 3 / Zero 2 W** — excluded on RAM (1 GB and 512 MB), not on enablement.
+  The DTBs are in the kernel and the firmware ships, so they may well boot;
+  they are just not somewhere a container host belongs.
+
 ## aarch64 only, asserted at build time
 
 `build_files/build.sh` fails loudly if the build arch is not aarch64. A silently

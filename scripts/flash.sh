@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 source ./pi-core.env
 
 DISK="${1:-}"
-IGN="${2:-build/pi4.ign}"
+IGN="${2:-build/pi.ign}"
 
 die() { echo "flash: $*" >&2; exit 1; }
 

@@ -1,6 +1,16 @@
-# Installing pi-core on a Raspberry Pi 4
+# Installing pi-core on a Raspberry Pi
 
 From a Pi and a blank SD card to a running, self-updating pi-core host.
+
+## Supported models
+
+| Model | Status | Notes |
+|---|---|---|
+| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§8) |
+| **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
+| Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship, but 1 GB (or less) RAM is below what FCOS plus containers wants. May work; untested, unsupported |
+
+Everything below applies to Pi 5 and Pi 4 alike unless a step says otherwise.
 
 Everything up to first boot happens on your workstation; the Pi is only powered
 on twice.
@@ -11,18 +21,23 @@ on twice.
 
 ## 0. What you need
 
-- Raspberry Pi 4 (Pi 3 and Pi 5 firmware ships in the image too, but only Pi 4
-  is targeted for now)
+- A Raspberry Pi 5 or 4
 - SD card, 16 GB or more — plus a second, throwaway card for the EEPROM update
 - A card reader on your workstation
 - `podman`, `jq`, `rsync`, `just`, and `sudo` on the workstation
 - **Strongly recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails
   before networking comes up, this is the only way to see why.
 
-Storage note: an SSD over USB is a better long-term choice than an SD card —
-ostree deployments are write-heavy and none of this is write-tuned. Pi 4 boots
-from USB with a current EEPROM. The procedure is identical; just point `DISK=`
-at the USB device.
+### Storage
+
+ostree deployments are write-heavy and none of this is write-tuned, so an SD
+card will wear out faster than you would like.
+
+- **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM;
+  the procedure is identical, just point `DISK=` at the USB device.
+- **Pi 5: SD card only.** U-Boot 2026.04 has no BCM2712 PCIe support, so NVMe
+  is not a boot option, and USB boot is not working in Fedora's Pi 5 support
+  either. Use a good endurance-rated card and expect to replace it.
 
 ## 1. Update the Pi's EEPROM (one-time, per Pi)
 
@@ -46,7 +61,7 @@ export SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub     # optional, defaults to id_rsa.
 just ignition
 ```
 
-This renders `build/pi4.ign`. It creates the `core` user with your key, masks
+This renders `build/pi.ign`. It creates the `core` user with your key, masks
 zincati, and installs the first-boot service that rebases onto
 `ghcr.io/<owner>/pi-core:stable` — `<owner>` is derived from your git remote,
 so a fork points at its own image automatically.
@@ -140,14 +155,14 @@ there is no rollback for it. Your `config.txt` is preserved.
 
 ## 8. Serial console
 
-Worth wiring up before you need it. With the Pi powered off, connect the
-adapter to the GPIO header:
+Worth wiring up before you need it — **and the wiring differs by model.** This
+is not interchangeable; the device trees disagree about which UART is the
+console:
 
-| Adapter | Pi header |
-|---|---|
-| GND | pin 6 |
-| RX  | pin 8  (GPIO14 / Pi TX) |
-| TX  | pin 10 (GPIO15 / Pi RX) |
+| Model | DTB `stdout-path` | Connect to | Kernel console |
+|---|---|---|---|
+| **Pi 5 / 500** | `serial10` | the dedicated 3-pin **debug UART connector** (next to the USB-C socket) | `ttyAMA10` |
+| **Pi 4** | `serial0` | GPIO header: GND pin 6, adapter RX to pin 8 (GPIO14/TX), adapter TX to pin 10 (GPIO15/RX) | `ttyAMA0` |
 
 Do **not** connect the adapter's 5 V line. Then:
 
@@ -155,8 +170,9 @@ Do **not** connect the adapter's 5 V line. Then:
 screen /dev/ttyUSB0 115200      # or: picocom -b 115200 /dev/ttyUSB0
 ```
 
-`enable_uart=1` is already set in Fedora's `config.txt`, and U-Boot passes the
-console through to the kernel automatically. On a Pi 4 the console is `ttyAMA0`.
+`enable_uart=1` is already set in Fedora's `config.txt`, and U-Boot reads
+`stdout-path` from the firmware-provided device tree, so it passes the right
+console through to the kernel without extra configuration.
 
 ## 9. If it goes wrong
 
@@ -167,6 +183,8 @@ console through to the kernel automatically. On a Pi 4 the console is `ttyAMA0`.
 | Boots FCOS but no SSH | Ignition failed — check the serial console; a malformed key is the usual cause |
 | SSH works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
 | Card boots on the workstation but not the Pi | Flashed from inside a container (step 3) |
+| Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§8) |
+| Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
 
 Boot chain, for orientation:
 

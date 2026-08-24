@@ -60,8 +60,8 @@ if [[ ! -r "${SSH_PUBKEY_FILE:-$HOME/.ssh/id_rsa.pub}" ]]; then
     skip "no user SSH key; validating the template with a throwaway key"
 fi
 if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
-    pass "butane --strict renders build/pi4.ign"
-    if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi4.ign >/tmp/iv.out 2>&1; then
+    pass "butane --strict renders build/pi.ign"
+    if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi.ign >/tmp/iv.out 2>&1; then
         pass "ignition-validate accepts the output"
     else
         fail "ignition-validate rejected the output"; sed 's/^/      /' /tmp/iv.out | head
@@ -72,7 +72,7 @@ if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
     # not the subshell used by the three-way parse check.
     # shellcheck disable=SC2031
     WANT="ghcr.io/${OWNER}/${IMAGE_NAME:?}:${DEFAULT_TAG:?}"
-    if grep -q "$WANT" build/pi4.ign; then pass "autorebase targets $WANT"; else fail "autorebase does not target $WANT"; fi
+    if grep -q "$WANT" build/pi.ign; then pass "autorebase targets $WANT"; else fail "autorebase does not target $WANT"; fi
 else
     fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
 fi

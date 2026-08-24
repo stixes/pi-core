@@ -1,5 +1,5 @@
 #!/bin/bash
-# Render ignition/pi4.bu.in -> build/pi4.ign using the butane container.
+# Render ignition/pi.bu.in -> build/pi.ign using the butane container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
@@ -17,11 +17,11 @@ mkdir -p build
 sed -e "s|@SSH_PUBKEY@|${PUBKEY}|g" \
     -e "s|@HOSTNAME@|${HOSTNAME_}|g" \
     -e "s|@IMAGE@|${IMAGE}|g" \
-    ignition/pi4.bu.in > build/pi4.bu
+    ignition/pi.bu.in > build/pi.bu
 
-podman run --rm -i quay.io/coreos/butane:release --strict < build/pi4.bu > build/pi4.ign
+podman run --rm -i quay.io/coreos/butane:release --strict < build/pi.bu > build/pi.ign
 
-echo "wrote build/pi4.ign"
+echo "wrote build/pi.ign"
 echo "  hostname : ${HOSTNAME_}"
 echo "  rebase to: ${IMAGE}"
 echo "  ssh key  : ${SSH_PUBKEY_FILE}"
