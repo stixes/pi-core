@@ -5,11 +5,11 @@ set -oue pipefail
 FEDORA_RELEASE="${FEDORA_RELEASE:-44}"
 FW_STASH=/usr/lib/pi-core/firmware
 
-echo "::: pi-core build on $(rpm -E %{_arch}), Fedora $(rpm -E %fedora)"
+echo "::: pi-core build on $(rpm -E '%{_arch}'), Fedora $(rpm -E '%fedora')"
 
 # Fail loudly rather than silently producing an x86 image.
-if [[ "$(rpm -E %{_arch})" != "aarch64" ]]; then
-    echo "FATAL: pi-core is aarch64-only, got $(rpm -E %{_arch}). Build with --platform=linux/arm64." >&2
+if [[ "$(rpm -E '%{_arch}')" != "aarch64" ]]; then
+    echo "FATAL: pi-core is aarch64-only, got $(rpm -E '%{_arch}'). Build with --platform=linux/arm64." >&2
     exit 1
 fi
 
@@ -57,4 +57,4 @@ dnf5 clean all
 rm -rf /var/cache/* /var/log/* /tmp/* /run/dnf /var/lib/dnf/repos || true
 
 echo "::: pi-core build complete; firmware stash:"
-ls -1 "${FW_STASH}" | head -20
+find "${FW_STASH}" -maxdepth 1 -printf '%f\n' | sort | head -20

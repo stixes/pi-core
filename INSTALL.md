@@ -15,7 +15,7 @@ on twice.
   is targeted for now)
 - SD card, 16 GB or more — plus a second, throwaway card for the EEPROM update
 - A card reader on your workstation
-- `podman`, `jq`, `rsync`, `make`, and `sudo` on the workstation
+- `podman`, `jq`, `rsync`, `just`, and `sudo` on the workstation
 - **Strongly recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails
   before networking comes up, this is the only way to see why.
 
@@ -43,7 +43,7 @@ cd pi-core
 export PI_HOSTNAME=pi-core                       # optional, defaults to pi-core
 export SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub     # optional, defaults to id_rsa.pub
 
-make ignition
+just ignition
 ```
 
 This renders `build/pi4.ign`. It creates the `core` user with your key, masks
@@ -57,7 +57,7 @@ There is no password login — SSH key only. If you lose the key you reflash.
 Find the device with `lsblk`, and be careful: **this erases it.**
 
 ```bash
-make flash DISK=/dev/sdX
+just flash /dev/sdX
 ```
 
 Run this **on the host, not inside Toolbx or distrobox** — container root maps

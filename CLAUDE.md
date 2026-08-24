@@ -24,10 +24,30 @@ anything.
 ## Commands
 
 ```bash
-make build      # local aarch64 build (qemu on x86; slow but works)
-make inspect    # sanity-check the built image
-make ignition   # render build/pi4.ign
-make flash DISK=/dev/sdX   # DESTRUCTIVE
+just            # list recipes
+just build      # local aarch64 build (qemu on x86; slow but works)
+just test       # tier 0 (static) + tier 1 (image assertions)
+just inspect    # sanity-check the built image
+just ignition   # render build/pi4.ign
+just flash /dev/sdX   # DESTRUCTIVE
+```
+
+## Tests
+
+`just test` is the gate: `tests/static.sh` (shellcheck, actionlint, ignition
+validation, env-file format and three-way parse agreement) and `tests/image.sh`
+(architecture, firmware-stash completeness, Pi 3/4/5 DTBs, empty `/boot`, unit
+enablement). `just test-supply-chain` checks the *published* image's signature
+and that it is pullable with no credentials.
+
+Assertions double as documentation guards: the image test fails if avahi
+appears, because INSTALL.md promises `.local` does not resolve. If you change
+behaviour a test asserts, update the docs in the same commit.
+
+Green CI is not proof — verify the artifact:
+
+```bash
+cosign verify --key cosign.pub ghcr.io/stixes/pi-core:stable
 ```
 
 ## Rules
@@ -35,9 +55,9 @@ make flash DISK=/dev/sdX   # DESTRUCTIVE
 - **aarch64 only.** `build.sh` asserts the arch and fails loudly; do not
   "fix" that by relaxing it.
 - **`pi-core.env` must be bare `KEY=value`** — no quotes, no inline comments.
-  Three parsers read it (make `include`, shell `source`, `>> $GITHUB_ENV`) and
-  they disagree about quoting. Make keeps both the quotes and the whitespace
-  before an inline comment.
+  Three parsers read it (just's `dotenv-load`, shell `source`, and
+  `>> $GITHUB_ENV`) and they disagree about quoting. `tests/static.sh` enforces
+  both the format and that all three agree.
 - **The CI signing block is a matched set.** cosign `v3.1.2` +
   cosign-installer pinned by SHA (`v4.1.2`, it has no floating `v4` tag) +
   `docker/login-action` (cosign reads `~/.docker/config.json`; `podman login`
@@ -55,16 +75,6 @@ make flash DISK=/dev/sdX   # DESTRUCTIVE
 - **`/boot` must be empty in the built image**, or `bootc container lint`
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
-
-## Verifying a build is real
-
-Green CI is not proof. Check the artifact:
-
-```bash
-cosign verify --key cosign.pub ghcr.io/stixes/pi-core:stable
-```
-
-and confirm the config reports `architecture: arm64`, `ostree.bootable: 1`.
 
 ## Status
 

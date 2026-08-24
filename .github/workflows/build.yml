@@ -41,6 +41,15 @@ jobs:
         # and blanks rather than cat'ing the file wholesale.
         run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' pi-core.env >> "$GITHUB_ENV"
 
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Tier 0 - static checks
+        run: just test-static
+
       - name: Build image
         run: |
           podman build \
@@ -49,6 +58,9 @@ jobs:
             --build-arg BASE_TAG="${BASE_TAG}" \
             --build-arg FEDORA_RELEASE="${FEDORA_RELEASE}" \
             -t "${IMAGE_NAME}:${DEFAULT_TAG}" .
+
+      - name: Tier 1 - image assertions
+        run: just test-image
 
       - name: Lowercase registry
         run: echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "$GITHUB_ENV"
@@ -102,3 +114,9 @@ jobs:
           cosign sign -y --new-bundle-format=false --use-signing-config=false \
             --key env://COSIGN_PRIVATE_KEY \
             "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+
+      - name: Tier 1.5 - verify the published image
+        if: github.event_name != 'pull_request'
+        # Proves the signature actually verifies and that the package can be
+        # pulled with no credentials, which is what the Pi does on first boot.
+        run: just test-supply-chain
