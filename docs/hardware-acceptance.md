@@ -5,6 +5,17 @@ The automated tiers (`just test`, `just test-supply-chain`) prove the image is
 `config.txt`, U-Boot, GRUB and into the ostree deployment is exercised only on
 real hardware. This checklist is that gate.
 
+It runs in two halves, because the machine cannot check itself until you can
+reach it:
+
+- **Part 1 — manual, at the machine.** Monitor and keyboard. You watch the boot
+  and record what happened. Nothing can be scripted here; if the boot chain
+  fails there is no shell to run a script in.
+- **Part 2 — automated, over SSH.** Once you can log in: `just test-hardware
+  <host>` runs the assertions and prints pass/fail.
+- **Part 3 — manual again.** Update and rollback, because it reboots the
+  machine out from under you.
+
 Run it end to end on the first hardware attempt, and again whenever the base
 image, kernel, firmware payload or boot configuration changes.
 
@@ -13,19 +24,60 @@ image, kernel, firmware payload or boot configuration changes.
 
 ## Before you start
 
-Attach the **serial console** (INSTALL.md §8). It is not optional for
-acceptance: checks A1–A3 are invisible without it, and a failure before
-networking leaves no other evidence.
+### Pick an observation channel
 
-**Check you are on the right UART for the model** — Pi 5 uses the dedicated
-debug connector (`ttyAMA10`), Pi 4 uses GPIO 14/15 (`ttyAMA0`). Silence on the
-wrong one looks exactly like a dead board.
+You need *some* way to see what the machine is doing. In order of usefulness:
 
-Log the whole session to a file so a failure is diagnosable afterwards:
+| Channel | Sees | Needs |
+|---|---|---|
+| **Serial console** | everything, including firmware and U-Boot | USB-TTL adapter; Pi 5 also a JST-SH cable for the debug connector |
+| **HDMI + USB keyboard** | firmware splash, U-Boot, GRUB, and the kernel **from the second boot onward** | a monitor, and a console password (below) |
+| **Network + post-mortem** | only that it reached userspace; failures reconstructed afterwards from the card | nothing extra |
+
+Serial remains the best option and a USB-TTL adapter is cheap insurance, but
+**acceptance is runnable without one.** If you have no serial console, do both
+of the following or you will be debugging blind:
+
+1. **Set a console password.** The default config is SSH-key only, so a machine
+   that boots but never reaches the network cannot be logged into at all, even
+   with a monitor attached:
+
+   ```bash
+   export PI_PASSWORD_HASH=$(just password-hash)
+   just ignition
+   ```
+
+2. **Keep a monitor attached from power-on.** Note the kernel only logs to HDMI
+   from the second boot (see `console=tty0` in `ignition/pi.bu.in`), so on the
+   very first boot expect output to stop after GRUB. That is expected, not a
+   failure.
+
+### What you cannot see without serial
+
+Checks **A1–A2** (firmware start, U-Boot banner) are only partially observable
+on HDMI, and the window between GRUB and userspace is dark on first boot. If
+the machine fails there, fall back to bisection rather than guessing:
+
+- Does a stock Raspberry Pi OS card boot on this Pi? → isolates the board and
+  the EEPROM.
+- Does the pi-core card enumerate on the network at all? → separates a dead
+  boot chain from a dead network.
+
+### Post-mortem from the card
+
+When a boot fails after the kernel starts, power off, move the card to your
+workstation and read what it left behind — this recovers most of what a serial
+console would have shown:
 
 ```bash
-screen -L -Logfile boot-$(date +%Y%m%d-%H%M).log /dev/ttyUSB0 115200
+sudo mount /dev/sdX4 /mnt        # the root partition
+sudo journalctl -D /mnt/ostree/deploy/*/var/log/journal -b -1 --no-pager | tail -100
+sudo ls /mnt/ostree/deploy/*/var/lib/       # did Ignition get that far?
 ```
+
+Check the partition number with `lsblk -f`; the root filesystem is labelled
+`root`. Nothing is written there before the kernel mounts it, so a failure at
+A1–A3 leaves no trace on disk — that is the case serial exists for.
 
 Record the baseline before powering on:
 
@@ -39,6 +91,11 @@ Record the baseline before powering on:
 | Card written at | timestamp |
 
 ---
+
+# Part 1 — manual, at the machine
+
+Monitor and keyboard attached before power-on. You are the instrument here:
+note what appears and when, because none of it is recoverable afterwards.
 
 ## A. Boot chain
 
@@ -70,6 +127,8 @@ these as live questions rather than assumptions:
 - [ ] **B2** The `core` user exists with your key, and `/etc/hostname` is what
       you set.
 - [ ] **B3** `systemctl is-enabled zincati.service` reports `masked`.
+- [ ] **B4** The machine appears in your DHCP leases and accepts SSH. **This is
+      the handover point** — from here on the checks are scripted.
 
 ## C. Autorebase
 
@@ -83,6 +142,20 @@ image. Do not intervene early; watch the unit rather than the screen.
       (it must not run on every boot).
 
 Record: wall-clock time for the pull, and the link speed if known.
+
+# Part 2 — automated, over SSH
+
+Once **B4** passes, stop hand-checking and run:
+
+```bash
+just test-hardware <address>        # or user@host
+```
+
+It is read-only: no upgrade, no reboot, no firmware writes. It covers D and E
+below and prints the observations worth recording (model, revision, kernel,
+thermals, firmware drift). Hand-check anything it reports as `skip`.
+
+The manual equivalents, for reference or when SSH is not available:
 
 ## D. Running the right thing
 
@@ -107,6 +180,8 @@ Record: `uname -r`, and `cat /proc/cpuinfo | grep Revision`.
 **Do not run `pi-core-firmware sync` as part of first acceptance.** There is no
 rollback for a bad firmware write. Exercise it only once A–F have passed, when
 there is genuine drift, and with the serial console attached.
+
+# Part 3 — manual again
 
 ## F. Update and rollback
 

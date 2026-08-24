@@ -68,6 +68,10 @@ validation, env-file format and three-way parse agreement) and `tests/image.sh`
 enablement). `just test-supply-chain` checks the *published* image's signature
 and that it is pullable with no credentials.
 
+On hardware: `just test-hardware <host>` (read-only, over SSH) covers what can
+be scripted. Everything before SSH works is a manual test at the console —
+`docs/hardware-acceptance.md` is the procedure.
+
 Assertions double as documentation guards: the image test fails if avahi
 appears, because INSTALL.md promises `.local` does not resolve. If you change
 behaviour a test asserts, update the docs in the same commit.

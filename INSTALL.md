@@ -66,7 +66,17 @@ zincati, and installs the first-boot service that rebases onto
 `ghcr.io/<owner>/pi-core:stable` — `<owner>` is derived from your git remote,
 so a fork points at its own image automatically.
 
-There is no password login — SSH key only. If you lose the key you reflash.
+By default there is **no password login** — SSH key only, and if you lose the
+key you reflash.
+
+**Set a console password if you have no serial console.** Without one, a
+machine that boots but never reaches the network cannot be logged into even
+with a monitor and keyboard attached:
+
+```bash
+export PI_PASSWORD_HASH=$(just password-hash)
+just ignition
+```
 
 ## 3. Flash the card
 

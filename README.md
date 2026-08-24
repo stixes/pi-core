@@ -53,6 +53,8 @@ headless box. See [docs/design-decisions.md](docs/design-decisions.md).
 
 ```bash
 just build                      # build locally (qemu on x86; slow but works)
+just test                       # static checks + image assertions
+just test-hardware <host>       # assertions against a booted Pi, over SSH
 just inspect                    # sanity-check the built image
 just ignition                   # render build/pi.ign
 just flash /dev/sdX        # DESTRUCTIVE: FCOS + firmware onto a card

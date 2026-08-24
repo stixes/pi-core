@@ -11,6 +11,7 @@ passwd:
     - name: core
       ssh_authorized_keys:
         - "@SSH_PUBKEY@"
+@PASSWORD_LINE@
       groups:
         - sudo
         - docker
@@ -32,6 +33,15 @@ storage:
   directories:
     - path: /etc/pi-core-autorebase
       mode: 0755
+
+# U-Boot derives the console from the device tree's stdout-path, which is a
+# UART. Without this the kernel logs only to serial and an attached monitor
+# goes blank the moment the kernel takes over. Takes effect from the SECOND
+# boot (Ignition applies kargs via rpm-ostree), which the autorebase reboot
+# provides anyway.
+kernel_arguments:
+  should_exist:
+    - console=tty0
 
 systemd:
   units:

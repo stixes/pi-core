@@ -29,6 +29,10 @@ inspect:
 ignition:
     ./scripts/render-ignition.sh
 
+# Generate a password hash for console login (PI_PASSWORD_HASH)
+password-hash:
+    @mkpasswd -m yescrypt
+
 # Download the Raspberry Pi firmware payload
 firmware:
     ./scripts/fetch-firmware.sh
@@ -57,6 +61,10 @@ test-image:
 # Tier 1.5: verify the *published* image's signature and public pullability
 test-supply-chain:
     ./tests/supply-chain.sh
+
+# Tier 3: assertions against a booted Pi over SSH (read-only)
+test-hardware HOST:
+    ./tests/hardware.sh "{{HOST}}"
 
 # Used by tests/static.sh to check dotenv parsing agrees with the others
 _print-env:
