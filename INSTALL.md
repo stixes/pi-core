@@ -37,7 +37,7 @@ the update is done — roughly ten seconds. Power off and remove the card.
 ## 2. Configure your install
 
 ```bash
-git clone git@github.com:stixes/pi-core.git
+git clone <this repo, or your fork>
 cd pi-core
 
 export PI_HOSTNAME=pi-core                       # optional, defaults to pi-core
@@ -48,7 +48,8 @@ just ignition
 
 This renders `build/pi4.ign`. It creates the `core` user with your key, masks
 zincati, and installs the first-boot service that rebases onto
-`ghcr.io/stixes/pi-core:stable`.
+`ghcr.io/<owner>/pi-core:stable` — `<owner>` is derived from your git remote,
+so a fork points at its own image automatically.
 
 There is no password login — SSH key only. If you lose the key you reflash.
 
@@ -75,7 +76,7 @@ Put the card in the Pi and power on. Then wait — the Pi does a lot here:
 1. **20–30 seconds of nothing.** No output at all. This is normal.
 2. U-Boot starts, GRUB appears, Fedora CoreOS boots.
 3. Ignition applies your config on first boot.
-4. `pi-core-autorebase.service` pulls `ghcr.io/stixes/pi-core:stable` and
+4. `pi-core-autorebase.service` pulls `ghcr.io/<owner>/pi-core:stable` and
    reboots. **This downloads a multi-gigabyte image** — on a slow card and a
    slow link it can take a long while. The Pi looks idle; it is not.
 5. The Pi comes back up running pi-core.
@@ -107,7 +108,7 @@ bootc status
 pi-core-firmware check
 ```
 
-`bootc status` should name `ghcr.io/stixes/pi-core:stable`. If it still says
+`bootc status` should name `ghcr.io/<owner>/pi-core:stable`. If it still says
 `ucore-minimal`, the rebase did not run — check
 `journalctl -u pi-core-autorebase.service`.
 

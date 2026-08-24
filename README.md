@@ -4,7 +4,7 @@ A custom [uCore](https://github.com/ublue-os/ucore) derivative for Raspberry Pi,
 for my personal homelab.
 
 **Status: prototype.** CI builds, signs and publishes
-`ghcr.io/stixes/pi-core:stable`, but nothing here has booted real hardware yet.
+`ghcr.io/<owner>/pi-core:stable`, but nothing here has booted real hardware yet.
 
 ## How it works
 
@@ -86,10 +86,14 @@ CI signs each pushed image with cosign. The public key is `cosign.pub`, in this
 repo. The matching private key is **not** in the repo — it lives in the
 `SIGNING_SECRET` repository secret, and is gitignored locally as `cosign.key`.
 
+Forking? Generate your own pair (`cosign generate-key-pair`), commit the new
+`cosign.pub`, and add the private key as your fork's `SIGNING_SECRET`. Nothing
+else needs changing: the GHCR owner is derived, not committed.
+
 Verify a published image with:
 
 ```bash
-cosign verify --key cosign.pub ghcr.io/stixes/pi-core:stable
+cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable"
 ```
 
 The image does not yet ship a container-policy entry for this key, so the
@@ -106,8 +110,9 @@ Apache-2.0, matching uCore / Universal Blue upstream.
   `ostree-unverified-registry:`. CI signs the image with cosign, but the
   verification policy is not wired into the image yet, so the signed transport
   cannot be used until it is.
-- `REPO_ORGANIZATION` in `pi-core.env` is set to `stixes` — change it if that is
-  not the right GHCR owner. CI also needs a `SIGNING_SECRET` repository secret.
+- The GHCR owner is derived from your git remote (or `github.repository_owner`
+  in CI) by `scripts/repo-owner.sh`; override with `REPO_ORGANIZATION=...`.
+  A fork needs its own `SIGNING_SECRET` and `cosign.pub` — see Signing.
 - No workload yet. The intended first job is an independent observability node
   (uptime-kuma, homepage, beszel) — see `docs/plan.md` for why.
 - Pi 4 is the only tested target. The firmware payload already covers Pi 3 and

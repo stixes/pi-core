@@ -8,6 +8,7 @@ source tests/lib.sh
 # shellcheck disable=SC1091
 set -a; source ./pi-core.env; set +a
 
+REPO_ORGANIZATION="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"
 REPO="${REPO_ORGANIZATION}/${IMAGE_NAME}"
 REMOTE="ghcr.io/${REPO}:${DEFAULT_TAG}"
 

@@ -39,7 +39,11 @@ jobs:
       - name: Load build parameters
         # $GITHUB_ENV accepts only bare KEY=value lines, so strip comments
         # and blanks rather than cat'ing the file wholesale.
-        run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' pi-core.env >> "$GITHUB_ENV"
+        run: |
+          grep -E '^[A-Za-z_][A-Za-z0-9_]*=' pi-core.env >> "$GITHUB_ENV"
+          # Owner is derived, never committed, so forks publish and verify
+          # their own image.
+          echo "REPO_ORGANIZATION=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
       - name: Install just
         uses: extractions/setup-just@v3

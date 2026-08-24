@@ -4,7 +4,8 @@ Custom [uCore](https://github.com/ublue-os/ucore) (Fedora CoreOS) bootc image
 for Raspberry Pi. **Personal project** — personal homelab scope, personal git
 identity (see `git config --local user.email`). No work conventions apply here.
 
-Published: `ghcr.io/stixes/pi-core:stable` (public, cosign-signed).
+Published to `ghcr.io/<owner>/pi-core:stable` (public, cosign-signed), where
+`<owner>` is derived by `scripts/repo-owner.sh` — never hardcode it.
 
 ## Model
 
@@ -47,7 +48,7 @@ behaviour a test asserts, update the docs in the same commit.
 Green CI is not proof — verify the artifact:
 
 ```bash
-cosign verify --key cosign.pub ghcr.io/stixes/pi-core:stable
+cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable"
 ```
 
 ## Rules

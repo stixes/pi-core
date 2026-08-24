@@ -67,10 +67,11 @@ if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
         fail "ignition-validate rejected the output"; sed 's/^/      /' /tmp/iv.out | head
     fi
     # The rebase target must match the image this repo publishes.
-    # SC2031: these come from the top-level source above, not the subshell
-    # used by the three-way parse check.
+    OWNER="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"
+    # SC2031: IMAGE_NAME/DEFAULT_TAG come from the top-level source above,
+    # not the subshell used by the three-way parse check.
     # shellcheck disable=SC2031
-    WANT="ghcr.io/${REPO_ORGANIZATION:?}/${IMAGE_NAME:?}:${DEFAULT_TAG:?}"
+    WANT="ghcr.io/${OWNER}/${IMAGE_NAME:?}:${DEFAULT_TAG:?}"
     if grep -q "$WANT" build/pi4.ign; then pass "autorebase targets $WANT"; else fail "autorebase does not target $WANT"; fi
 else
     fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head

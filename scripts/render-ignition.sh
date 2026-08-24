@@ -7,6 +7,7 @@ source ./pi-core.env
 
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-$HOME/.ssh/id_rsa.pub}"
 HOSTNAME_="${PI_HOSTNAME:-pi-core}"
+REPO_ORGANIZATION="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"
 IMAGE="ghcr.io/${REPO_ORGANIZATION}/${IMAGE_NAME}:${DEFAULT_TAG}"
 
 [[ -r "${SSH_PUBKEY_FILE}" ]] || { echo "no SSH pubkey at ${SSH_PUBKEY_FILE}" >&2; exit 1; }

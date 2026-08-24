@@ -39,8 +39,9 @@ flash DISK: ignition
 
 # Push the locally built image (needs podman login ghcr.io)
 push:
+    owner="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"; \
     podman push "$IMAGE_NAME:$DEFAULT_TAG" \
-        "ghcr.io/$REPO_ORGANIZATION/$IMAGE_NAME:$DEFAULT_TAG"
+        "ghcr.io/$owner/$IMAGE_NAME:$DEFAULT_TAG"
 
 # Everything that can run without hardware or a registry
 test: test-static test-image
