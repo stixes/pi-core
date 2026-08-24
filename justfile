@@ -37,8 +37,15 @@ password-hash:
 firmware:
     ./scripts/fetch-firmware.sh
 
-# DESTRUCTIVE: flash Fedora CoreOS + firmware to a card
-flash DISK: ignition
+# DESTRUCTIVE: flash Fedora CoreOS + firmware to a card. No argument = show
+# usage and list candidate devices.
+flash DISK="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "{{DISK}}" ]]; then
+        exec ./scripts/flash.sh
+    fi
+    just ignition
     ./scripts/flash.sh "{{DISK}}"
 
 # Push the locally built image (needs podman login ghcr.io)

@@ -113,11 +113,22 @@ Two caveats worth knowing:
 
 ## 3. Flash the card
 
-Find the device with `lsblk`, and be careful: **this erases it.**
+Run it with no argument to see usage and the candidate devices:
+
+```bash
+just flash
+```
+
+It lists removable/hotplug disks separately from this machine's own, and marks
+the latter. Then, once you have confirmed the size and model match your card:
 
 ```bash
 just flash /dev/sdX
 ```
+
+**This erases the device.** The script refuses any disk backing a filesystem of
+the machine you are on, and asks you to type the device name back before it
+writes anything.
 
 Run this **on the host, not inside Toolbx or distrobox** — container root maps
 to a different UID and will corrupt ownership on the EFI partition, producing a

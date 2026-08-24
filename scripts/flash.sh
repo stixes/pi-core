@@ -20,7 +20,78 @@ IGN="${2:-build/pi.ign}"
 
 die() { echo "flash: $*" >&2; exit 1; }
 
-[[ -n "${DISK}" ]] || die "usage: scripts/flash.sh /dev/sdX [ignition.ign]"
+# Whole disks backing this machine's own filesystems — never flash candidates.
+#
+# Checking only `/` is not enough: on an ostree/composefs host (Fedora Atomic,
+# and this very workstation) `findmnt -no SOURCE /` returns the string
+# "composefs", not a block device, so the guard silently protects nothing.
+# Check the mountpoints that are backed by real devices too, and strip the
+# "[/subvol]" suffix findmnt appends.
+system_disks() {
+    local mp src parent
+    for mp in / /sysroot /boot /var /home; do
+        src="$(findmnt -no SOURCE "${mp}" 2>/dev/null | head -1 || true)"
+        src="${src%%[*}"
+        [[ -n "${src}" && "${src}" == /dev/* ]] || continue
+        parent="$(lsblk -no PKNAME "${src}" 2>/dev/null | head -1 || true)"
+        if [[ -n "${parent}" ]]; then
+            echo "/dev/${parent}"
+        else
+            echo "${src}"
+        fi
+    done | sort -u
+    # Must not return non-zero: under `set -e` a failing command substitution
+    # in an assignment aborts the caller, silently.
+    return 0
+}
+
+is_system_disk() {
+    local candidate="$1" d
+    while read -r d; do
+        [[ -n "$d" && "$d" == "$candidate" ]] && return 0
+    done < <(system_disks)
+    return 1
+}
+
+usage() {
+    local sysdisks; sysdisks="$(system_disks || true)"
+    cat <<EOF
+Usage: just flash /dev/sdX          (or: scripts/flash.sh /dev/sdX [config.ign])
+
+Writes Fedora CoreOS ${FCOS_STREAM} (aarch64) to the card, adds the Raspberry Pi
+firmware and U-Boot to its EFI partition, and leaves a pi-core.conf there for
+headless setup. THIS ERASES THE TARGET DEVICE.
+
+Run 'just ignition' first if you have not already.
+
+EOF
+    local found=0
+    echo "Removable / hotplug devices — the likely candidates:"
+    while read -r name size tran model; do
+        grep -qxF "/dev/${name}" <<<"${sysdisks}" && continue
+        printf '  %-12s %-9s %-6s %s\n' "/dev/${name}" "${size}" "${tran:--}" "${model:-}"
+        found=1
+    done < <(lsblk -dn -o NAME,SIZE,TYPE,HOTPLUG,TRAN,MODEL 2>/dev/null \
+             | grep -vE '^(zram|loop|sr)' | awk '$3=="disk" && $4=="1" {tran=$5; $1=$1; printf "%s %s %s ", $1, $2, tran; for(i=6;i<=NF;i++) printf "%s ", $i; print ""}')
+    if [[ "${found}" -eq 0 ]]; then
+        echo "  (none detected — is the card inserted?)"
+    fi
+    echo
+    echo "Fixed disks on this machine (NOT candidates):"
+    while read -r name size model; do
+        local marker=""
+        grep -qxF "/dev/${name}" <<<"${sysdisks}" && marker="  <-- THIS MACHINE"
+        printf '  %-12s %-9s %s%s\n' "/dev/${name}" "${size}" "${model:-}" "${marker}"
+    done < <(lsblk -dn -o NAME,SIZE,TYPE,HOTPLUG,MODEL 2>/dev/null \
+             | grep -vE '^(zram|loop|sr)' | awk '$3=="disk" && $4=="0" {printf "%s %s ", $1, $2; for(i=5;i<=NF;i++) printf "%s ", $i; print ""}')
+    echo
+    echo "Confirm the size and model match the card before running."
+}
+
+if [[ -z "${DISK}" || "${DISK}" == "-h" || "${DISK}" == "--help" ]]; then
+    usage
+    exit 0
+fi
 
 if [[ -f /run/.toolboxenv || -f /run/.containerenv ]]; then
     die "refusing to run inside a container — see the header of this script"
@@ -29,10 +100,10 @@ fi
 [[ -b "${DISK}" ]]  || die "${DISK} is not a block device"
 [[ -r "${IGN}" ]]   || die "no ignition config at ${IGN} (run scripts/render-ignition.sh)"
 
-# Guard against nuking the workstation's own disk.
-ROOTDEV="$(findmnt -no SOURCE / || true)"
-ROOTPARENT="$(lsblk -no PKNAME "${ROOTDEV}" 2>/dev/null || true)"
-[[ -n "${ROOTPARENT}" && "${DISK}" == "/dev/${ROOTPARENT}" ]] && die "${DISK} hosts the running root filesystem"
+# Guard against nuking this workstation's own disk.
+if is_system_disk "${DISK}"; then
+    die "${DISK} backs a filesystem of THIS machine — refusing"
+fi
 
 echo
 lsblk -o NAME,SIZE,TYPE,RM,MODEL,MOUNTPOINTS "${DISK}"
