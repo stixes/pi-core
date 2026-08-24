@@ -18,9 +18,10 @@ pulls it.
 Boot chain: `EEPROM -> config.txt (kernel=rpi-u-boot.bin) -> U-Boot -> its EFI
 layer -> GRUB -> BLS -> ostree deployment`.
 
-Background and rejected alternatives are in `docs/research.md`; the target
-workload and phasing are in `docs/plan.md`. Read those before redesigning
-anything.
+The reasoning behind each choice is in `docs/design-decisions.md` — read it
+before redesigning anything. Point-in-time material (upstream research,
+deployment planning) is deliberately **not** in this repo: it ages on a
+different clock than the code, and some of it is personal infrastructure.
 
 ## Commands
 

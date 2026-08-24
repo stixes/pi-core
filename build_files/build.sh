@@ -22,7 +22,7 @@ cp -avf /ctx/system_files/. /
 # config.txt and u-boot.bin at the *root* of the ESP. Until bootupd grows
 # support (coreos/bootupd#766, PR #935 still open), we keep a copy of the
 # firmware in /usr/lib and reconcile it to the ESP by hand via
-# `pi-core-firmware sync`. See docs/research.md §4.
+# `pi-core-firmware sync`. See docs/design-decisions.md.
 #
 # bcm283x-firmware Requires bcm2711/bcm2712/bcm2835-firmware + overlays, so
 # this single payload covers Pi 3, 4 and 5.

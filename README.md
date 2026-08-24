@@ -30,7 +30,7 @@ Pi EEPROM  ->  config.txt (kernel=rpi-u-boot.bin)  ->  U-Boot
 
 U-Boot rather than an EDK2 chainloader: EDK2 needs interactive firmware-menu
 setup on first boot (3 GB RAM cap, ACPI mode hides GPIO), which is wrong for a
-headless box. See `docs/research.md` for the full comparison.
+headless box. See [docs/design-decisions.md](docs/design-decisions.md).
 
 ## Layout
 
@@ -45,7 +45,7 @@ headless box. See `docs/research.md` for the full comparison.
 | `scripts/render-ignition.sh` | Template -> `build/pi4.ign` |
 | `scripts/flash.sh` | FCOS install + firmware onto the ESP |
 | `.github/workflows/build.yml` | Build, sign, push to GHCR (arm64 runner) |
-| `docs/` | Research brief and build plan |
+| `docs/design-decisions.md` | Why the code looks the way it does |
 
 ## Usage
 
@@ -113,8 +113,7 @@ Apache-2.0, matching uCore / Universal Blue upstream.
 - The GHCR owner is derived from your git remote (or `github.repository_owner`
   in CI) by `scripts/repo-owner.sh`; override with `REPO_ORGANIZATION=...`.
   A fork needs its own `SIGNING_SECRET` and `cosign.pub` — see Signing.
-- No workload yet. The intended first job is an independent observability node
-  (uptime-kuma, homepage, beszel) — see `docs/plan.md` for why.
-- Pi 4 is the only tested target. The firmware payload already covers Pi 3 and
-  Pi 5, but neither has been tried; on Pi 5 expect the gaps listed in
-  `docs/research.md` (NVMe boot, thermal, audio).
+- No workload yet.
+- Pi 4 is the only target so far. The firmware payload already covers Pi 3 and
+  Pi 5, but neither has been tried; on Pi 5 expect gaps (NVMe boot, thermal,
+  audio) from Fedora's still-landing Pi 5 support.
