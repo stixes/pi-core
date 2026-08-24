@@ -19,9 +19,30 @@ Boot chain: `EEPROM -> config.txt (kernel=rpi-u-boot.bin) -> U-Boot -> its EFI
 layer -> GRUB -> BLS -> ostree deployment`.
 
 The reasoning behind each choice is in `docs/design-decisions.md` — read it
-before redesigning anything. Point-in-time material (upstream research,
-deployment planning) is deliberately **not** in this repo: it ages on a
-different clock than the code, and some of it is personal infrastructure.
+before redesigning anything.
+
+### What belongs in `docs/`
+
+Public repo, versioned with the code. A doc earns a place here if it is
+**durable, about this project, and safe to publish**:
+
+- how to build, install, operate or recover the thing
+- why the code is shaped the way it is (`design-decisions.md`)
+- behaviour a user or contributor must know
+
+Keep out, on purpose:
+
+- **point-in-time material** — upstream research, comparisons, status
+  snapshots. It ages on a different clock than the code and rots unnoticed.
+- **personal infrastructure** — host names, addresses, estate topology,
+  which machine gets which workload.
+- **cross-project synthesis** — knowledge that outlives this repo.
+
+Those three live in the private wiki instead. If a doc would need editing
+because something *outside* this repo changed, it belongs there, not here.
+
+When a doc states a checkable fact about the image, add the matching assertion
+in `tests/` — see the avahi/`.local` guard for the pattern.
 
 ## Commands
 
