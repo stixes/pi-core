@@ -59,6 +59,8 @@ make flash DISK=/dev/sdX        # DESTRUCTIVE: FCOS + firmware onto a card
 `scripts/flash.sh` must run **on the host, not in Toolbx** — root in a Toolbx
 container maps to a different UID and corrupts ownership on the ESP.
 
+Step-by-step from a blank card: [INSTALL.md](INSTALL.md).
+
 ## The firmware gap
 
 `bootc upgrade` updates the OS atomically. It does **not** update the Pi

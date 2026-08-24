@@ -74,5 +74,9 @@ rmdir "${MNT}"
 
 echo
 echo "Done. Move ${DISK} to the Pi and boot."
-echo "Expect 20-30 s of blank screen before anything appears."
-echo "Then: ssh core@${PI_HOSTNAME:-pi-core}.local  (it will reboot once to rebase)"
+echo "Expect 20-30 s of blank screen before anything appears, then two reboots"
+echo "as Ignition rebases onto the pi-core image."
+echo
+echo "The image has no mDNS responder, so ${PI_HOSTNAME:-pi-core}.local will NOT"
+echo "resolve. Find the address in your DHCP leases, then: ssh core@<address>"
+echo "See INSTALL.md for the serial-console fallback."
