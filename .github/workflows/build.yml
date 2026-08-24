@@ -44,9 +44,6 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-
       - name: Tier 0 - static checks
         run: just test-static
 

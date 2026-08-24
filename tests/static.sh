@@ -10,14 +10,17 @@ source tests/lib.sh
 set -a; source ./pi-core.env; set +a
 
 head_ "shellcheck"
-mapfile -t SCRIPTS < <(printf '%s\n' scripts/*.sh build_files/*.sh system_files/usr/bin/pi-core-firmware)
-if command -v shellcheck >/dev/null; then
-    for s in "${SCRIPTS[@]}"; do
-        if shellcheck -x "$s" >/tmp/sc.out 2>&1; then pass "$s"; else fail "$s"; sed 's/^/      /' /tmp/sc.out | head -20; fi
-    done
-else
-    skip "shellcheck not installed"
-fi
+# Run the pinned container rather than whatever shellcheck the host has:
+# a version difference between a laptop and CI means green locally, red in CI.
+mapfile -t SCRIPTS < <(printf '%s\n' scripts/*.sh build_files/*.sh tests/*.sh system_files/usr/bin/pi-core-firmware)
+SHELLCHECK_IMAGE="docker.io/koalaman/shellcheck:v0.11.0"
+for s in "${SCRIPTS[@]}"; do
+    if podman run --rm -v "$PWD:/mnt:ro,z" -w /mnt "$SHELLCHECK_IMAGE" -x "$s" >/tmp/sc.out 2>&1; then
+        pass "$s"
+    else
+        fail "$s"; sed 's/^/      /' /tmp/sc.out | head -20
+    fi
+done
 
 head_ "actionlint (workflow syntax + action refs)"
 if podman run --rm -v "$PWD:/repo:z" -w /repo docker.io/rhysd/actionlint:latest -color >/tmp/al.out 2>&1; then
@@ -48,6 +51,14 @@ if diff -q /tmp/env.source /tmp/env.just >/dev/null; then pass "shell source == 
 else fail "shell source != just dotenv"; diff /tmp/env.source /tmp/env.just | sed 's/^/      /'; fi
 
 head_ "ignition"
+# CI has no SSH key; the template still needs validating, so synthesise a
+# throwaway one when the configured key is absent.
+if [[ ! -r "${SSH_PUBKEY_FILE:-$HOME/.ssh/id_rsa.pub}" ]]; then
+    TMPKEY=$(mktemp -u /tmp/pi-core-testkey.XXXXXX)
+    ssh-keygen -q -t ed25519 -N '' -C 'pi-core-test' -f "$TMPKEY"
+    export SSH_PUBKEY_FILE="${TMPKEY}.pub"
+    skip "no user SSH key; validating the template with a throwaway key"
+fi
 if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
     pass "butane --strict renders build/pi4.ign"
     if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi4.ign >/tmp/iv.out 2>&1; then

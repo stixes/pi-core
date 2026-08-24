@@ -43,7 +43,9 @@ read -rp "Type the device name to confirm (${DISK}): " confirm
 
 # Unmount anything currently mounted from the target.
 while read -r part; do
-    [[ -n "${part}" ]] && sudo umount "${part}" 2>/dev/null || true
+    if [[ -n "${part}" ]]; then
+        sudo umount "${part}" 2>/dev/null || true
+    fi
 done < <(lsblk -nlo PATH "${DISK}" | tail -n +2)
 
 echo ":: installing Fedora CoreOS"
