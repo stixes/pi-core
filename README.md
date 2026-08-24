@@ -66,6 +66,7 @@ to a different UID and corrupts ownership on the ESP.
 | `build_files/build.sh` | Package installs + the firmware stash |
 | `system_files/` | Overlay copied to `/` (the `pi-core-firmware` helper and its unit) |
 | `ignition/pi.bu.in` | Butane template for first boot (autorebase); model-agnostic |
+| `provisioning/pi-core.conf.example` | Headless per-device settings, copied to the card |
 | `scripts/fetch-firmware.sh` | Pull + extract the Pi firmware payload |
 | `scripts/render-ignition.sh` | Template -> `build/pi.ign` |
 | `scripts/flash.sh` | FCOS install + firmware onto the ESP |

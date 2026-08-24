@@ -48,6 +48,7 @@ rm -rf /boot/efi
 
 ### 3. Enable units
 systemctl enable pi-core-firmware-check.service
+systemctl enable pi-core-provision.service
 
 ### 4. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo

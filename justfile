@@ -48,11 +48,19 @@ push:
         "ghcr.io/$owner/$IMAGE_NAME:$DEFAULT_TAG"
 
 # Everything that can run without hardware or a registry
-test: test-static test-image
+test: test-static test-provision test-image
 
 # Tier 0: linting, config validation, env-file format (seconds)
 test-static:
     ./tests/static.sh
+
+# Unit tests for the headless provisioner's config parsing (no image needed)
+test-provision:
+    ./tests/provision.sh
+
+# Show what a pi-core.conf would do, without applying it
+provision-dry-run CONF:
+    PI_CORE_ESP_DIR="$(dirname "{{CONF}}")" bash system_files/usr/bin/pi-core-provision --dry-run
 
 # Tier 1: assertions against the locally built image
 test-image:

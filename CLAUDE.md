@@ -110,6 +110,10 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 - **`/boot` must be empty in the built image**, or `bootc container lint`
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
+- **Per-device settings belong in `pi-core.conf`, not Ignition.** Ignition
+  cannot read a local file (spec v3.5: http/https/tftp/s3/arn/gs/data only), so
+  `pi-core-provision` reads a config off the card's FAT partition on first
+  boot. Parse it with the key whitelist — never `source` it.
 - **The Ignition template is model-agnostic** — nothing in `ignition/pi.bu.in`
   is Pi 4 or Pi 5 specific, and it should stay that way. If a model needs its
   own config, that is a second template, not a conditional.

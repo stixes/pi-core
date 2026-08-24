@@ -70,6 +70,14 @@ sudo mount "${ESP}" "${MNT}"
 echo ":: copying firmware onto ${ESP}"
 # --ignore-existing: never clobber what coreos-installer put there (EFI/, grub).
 sudo rsync -avh --ignore-existing --chown 0:0 build/rpi-firmware/ "${MNT}/"
+
+# Leave a headless-setup template on the card, DietPi-style: the FAT partition
+# is the one mountable in any laptop, so this is where per-device settings go.
+if [[ ! -e "${MNT}/pi-core.conf" ]]; then
+    sudo cp provisioning/pi-core.conf.example "${MNT}/pi-core.conf"
+    sudo chown 0:0 "${MNT}/pi-core.conf"
+    echo ":: wrote pi-core.conf to the boot partition (edit it before first boot)"
+fi
 sudo sync
 sudo umount "${MNT}"
 rmdir "${MNT}"
@@ -82,3 +90,6 @@ echo
 echo "The image has no mDNS responder, so ${PI_HOSTNAME:-pi-core}.local will NOT"
 echo "resolve. Find the address in your DHCP leases, then: ssh core@<address>"
 echo "See INSTALL.md for the serial-console fallback."
+echo
+echo "Headless setup: edit pi-core.conf on the FAT partition of the card before"
+echo "first boot - hostname, SSH key, password hash, timezone, tailscale key."

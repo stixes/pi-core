@@ -14,6 +14,28 @@ check() {  # check <description> <command...>
     if "$@" >/dev/null 2>&1; then pass "$desc"; else fail "$desc"; fi
 }
 
+# expect <desc> <regex> <text> — assert text matches; dump it on failure.
+expect() {
+    local desc="$1" pat="$2" text="$3"
+    if grep -qE -- "$pat" <<<"$text"; then
+        pass "$desc"
+    else
+        fail "$desc"
+        printf '%s\n' "$text" | sed 's/^/      /' | head -12
+    fi
+}
+
+# expect_not <desc> <regex> <text>
+expect_not() {
+    local desc="$1" pat="$2" text="$3"
+    if grep -qE -- "$pat" <<<"$text"; then
+        fail "$desc"
+        printf '%s\n' "$text" | sed 's/^/      /' | head -12
+    else
+        pass "$desc"
+    fi
+}
+
 summary() {
     printf '\n%s: %d passed, %d failed\n' "${1:-tests}" "$PASSED" "$FAILED"
     [[ "$FAILED" -eq 0 ]]

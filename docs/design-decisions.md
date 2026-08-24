@@ -66,6 +66,22 @@ Zincati fights a Universal Blue rebase, so the Ignition config masks it and lets
 Compose rather than podman Quadlet, because an OS rebase can orphan the
 container runtime that units assume.
 
+## Headless setup uses our own config file, not Ignition
+
+Per-device settings (hostname, SSH key, password, timezone, tailscale key) come
+from `pi-core.conf` on the card's FAT partition, applied on first boot of the
+pi-core image by `pi-core-provision`.
+
+Ignition cannot do this. Its config is baked into the boot partition at install
+time, and the spec (v3.5) only fetches from `http`, `https`, `tftp`, `s3`,
+`arn`, `gs` and `data` — no local files, no partitions. The `oem://` scheme
+that turns up in search results is Ignition v0.20, from the Container Linux
+era, and is long gone.
+
+So the choice was: re-render and re-flash per device, or add a small layer that
+reads a file a human can edit in any laptop. The file is parsed with an
+explicit key whitelist rather than sourced, so a value cannot execute anything.
+
 ## The owner is derived, never committed
 
 `scripts/repo-owner.sh` resolves the GHCR namespace from `REPO_ORGANIZATION`,

@@ -35,7 +35,9 @@ if [[ -z "$BOOTCONTENT" ]]; then pass "/boot is empty"; else fail "/boot is not 
 
 head_ "our additions"
 check "pi-core-firmware is executable" test -x /usr/bin/pi-core-firmware
+check "pi-core-provision is executable" test -x /usr/bin/pi-core-provision
 check "firmware-check unit is enabled" test -L /etc/systemd/system/multi-user.target.wants/pi-core-firmware-check.service
+check "provision unit is enabled"    test -L /etc/systemd/system/multi-user.target.wants/pi-core-provision.service
 check "sshd is enabled" test -L /etc/systemd/system/multi-user.target.wants/sshd.service
 
 head_ "expected runtime"

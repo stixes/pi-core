@@ -78,6 +78,39 @@ export PI_PASSWORD_HASH=$(just password-hash)
 just ignition
 ```
 
+## 2b. Headless setup via `pi-core.conf`
+
+`just flash` leaves a **`pi-core.conf`** on the card's FAT partition — the one
+your laptop mounts automatically. Edit it there, after flashing, before first
+boot. This is the DietPi `dietpi.txt` idea: per-device settings live on the
+card, so the same image and the same Ignition config serve every device.
+
+```
+PI_HOSTNAME=pi-core
+PI_SSH_KEY=ssh-ed25519 AAAA... you@host
+PI_PASSWORD_HASH=          # just password-hash
+PI_TIMEZONE=Europe/Copenhagen
+PI_TAILSCALE_AUTHKEY=
+PI_WIPE_SECRETS=1
+```
+
+Every key is optional; an empty file changes nothing. Check what a card would
+do before booting it:
+
+```bash
+just provision-dry-run /run/media/$USER/EFI-SYSTEM/pi-core.conf
+```
+
+Two caveats worth knowing:
+
+- **It applies on the second boot**, not the first. The provisioner lives in
+  the pi-core image, and the first boot is still stock Fedora CoreOS running
+  the rebase. Anything needed to *reach* the network (so far: nothing, since
+  this is ethernet-only) must still come from the Ignition config.
+- **Secrets on the card are plaintext**, readable in any laptop. With
+  `PI_WIPE_SECRETS=1` (the default) the password hash and tailscale key are
+  blanked from the file once applied.
+
 ## 3. Flash the card
 
 Find the device with `lsblk`, and be careful: **this erases it.**
