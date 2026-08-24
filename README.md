@@ -3,7 +3,8 @@
 A custom [uCore](https://github.com/ublue-os/ucore) derivative for Raspberry Pi,
 for my personal homelab.
 
-**Status: prototype.** CI builds, signs and publishes
+**Status: prototype.** No hardware has passed
+[docs/hardware-acceptance.md](docs/hardware-acceptance.md) yet. CI builds, signs and publishes
 `ghcr.io/<owner>/pi-core:stable`, but nothing here has booted real hardware yet.
 
 ## How it works
@@ -46,6 +47,7 @@ headless box. See [docs/design-decisions.md](docs/design-decisions.md).
 | `scripts/flash.sh` | FCOS install + firmware onto the ESP |
 | `.github/workflows/build.yml` | Build, sign, push to GHCR (arm64 runner) |
 | `docs/design-decisions.md` | Why the code looks the way it does |
+| `docs/hardware-acceptance.md` | The checklist a real Pi must pass |
 
 ## Usage
 

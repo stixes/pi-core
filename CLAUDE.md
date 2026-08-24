@@ -103,3 +103,5 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 
 Builds, lints clean, publishes and signs. **Never booted on real hardware.**
 Nothing here is verified against a Pi yet — treat hardware claims as untested.
+`docs/hardware-acceptance.md` is the gate that changes that; until a run is
+recorded against it, the boot chain is unproven.
