@@ -52,12 +52,15 @@ in `tests/` — see the avahi/`.local` guard for the pattern.
 ## Commands
 
 ```bash
-just            # list recipes
-just build      # local aarch64 build (qemu on x86; slow but works)
-just test       # tier 0 (static) + tier 1 (image assertions)
-just inspect    # sanity-check the built image
-just ignition   # render build/pi.ign
-just flash /dev/sdX   # DESTRUCTIVE
+just                        # list recipes
+just build                  # local aarch64 build (qemu on x86; slow but works)
+just test                   # tier 0 (static) + tier 1 (image assertions)
+just test-supply-chain      # tier 1.5 — the published image
+just test-hardware <host>   # tier 3 — a booted Pi, over SSH, read-only
+just inspect                # sanity-check the built image
+just ignition               # render build/pi.ign
+just password-hash          # console password hash for the ignition config
+just flash /dev/sdX         # DESTRUCTIVE
 ```
 
 ## Tests
@@ -107,10 +110,20 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 - **`/boot` must be empty in the built image**, or `bootc container lint`
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
+- **The Ignition template is model-agnostic** — nothing in `ignition/pi.bu.in`
+  is Pi 4 or Pi 5 specific, and it should stay that way. If a model needs its
+  own config, that is a second template, not a conditional.
+- **`console=tty0` and the optional console password are not clutter.** Without
+  the karg an attached monitor goes blank when the kernel starts; without a
+  password a machine that boots but never reaches the network cannot be logged
+  into at all. Both exist because there is no serial console here.
 
 ## Status
 
-Builds, lints clean, publishes and signs. **Never booted on real hardware.**
-Nothing here is verified against a Pi yet — treat hardware claims as untested.
-`docs/hardware-acceptance.md` is the gate that changes that; until a run is
-recorded against it, the boot chain is unproven.
+Builds, lints clean, publishes and signs. **Never booted on real hardware** —
+the boot chain (EEPROM → U-Boot → GRUB → ostree) is entirely unexercised and no
+automated tier can validate it. `docs/hardware-acceptance.md` is the gate;
+until a run is recorded against it, treat every hardware claim as untested.
+
+Say so plainly when reporting on this project. "Tests pass" is true and does
+not mean it works.
