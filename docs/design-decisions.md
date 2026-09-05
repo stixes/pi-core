@@ -95,6 +95,33 @@ override that decision:
 Someone who wants none of this changes the password, or adds a key and sets
 `PasswordAuthentication no`, at the first login.
 
+## The console mode is a karg, not a `config.txt` setting
+
+The image caps the console at 1280x720 via `video=` kargs passed to
+`bootc install`. On a Raspberry Pi the obvious place for this is `config.txt`,
+which sits on the FAT partition where anyone can edit it before first boot.
+That does not work here, and the reason is worth recording so it is not tried
+again:
+
+- Fedora's `config.txt` sets `kernel=rpi-u-boot.bin`, so the firmware boots
+  U-Boot, not Linux. `cmdline.txt` is only read when the firmware boots a
+  kernel directly.
+- `disable_fw_kms_setup` — the setting that governs firmware display setup —
+  works by having the firmware *append `video=` to the kernel command line*.
+  GRUB builds that line itself from the BLS entry. Measured on a running Pi 4,
+  `/proc/cmdline` and the device tree's `/chosen/bootargs` are byte-identical
+  and both contain GRUB's `BOOT_IMAGE=(hd0,gpt3)…`, so GRUB is what writes
+  `/chosen/bootargs`. Anything the firmware passed to U-Boot is gone by then.
+- `vc4-kms-v3d` reads EDID from the display over I2C rather than taking the
+  firmware's word for it, so `framebuffer_width` and `hdmi_mode` do not reach
+  the kernel's mode selection either.
+
+The adjustment path is therefore `rpm-ostree kargs --replace=…` after login,
+which is consistent with everything else about this image being configured
+after first boot. A FAT-editable knob would mean a first-boot service reading a
+file off the ESP and rewriting kargs — the pre-boot configuration mechanism
+this project deliberately deleted.
+
 ## mDNS, reversing an earlier decision
 
 The image runs `avahi-daemon` and opens `mdns` in the firewall's default zone,

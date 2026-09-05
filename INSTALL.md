@@ -22,7 +22,9 @@ downloaded, no network needed to get a usable machine.
 ## 0. What you need
 
 - A Raspberry Pi 5 or 4
-- SD card, 16 GB or more
+- SD card. 8 GB is the floor — a deployment is about 3.5 GB and the root
+  filesystem grows to fill whatever you use — but 16 GB or more is worth it,
+  since an update stages a second deployment alongside the first
 - A card reader, and any imaging tool: Raspberry Pi Imager, balenaEtcher,
   Rufus, or `dd`
 - **Recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails before
@@ -101,6 +103,15 @@ stands.
 - Give it its own hostname — every pi-core arrives as `pi-core` and they
   collide over mDNS.
 - Set the timezone, and bring up tailscale if you use it.
+
+The console is capped at 1280x720 so it stays readable on 1440p and 4K panels.
+For custom hardware, change it with kargs and reboot — **not** in `config.txt`,
+which cannot reach the kernel here (see below):
+
+```bash
+sudo rpm-ostree kargs \
+    --replace=video=HDMI-A-1:1280x720@60=video=HDMI-A-1:1920x1080@60
+```
 
 ## 5. Day-to-day
 
