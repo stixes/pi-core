@@ -180,7 +180,7 @@ jobs:
       - name: Checksum
         run: |
           cd build
-          sha256sum pi-core-*.img.xz > SHA256SUMS
+          sha256sum pi-core-installer-*.img.xz > SHA256SUMS
           cat SHA256SUMS
 
       - name: Install cosign
@@ -224,6 +224,6 @@ jobs:
               --notes-file .github/release-notes.md \
               || gh release edit "$TAG" --notes-file .github/release-notes.md
           gh release upload "$TAG" --clobber \
-              build/pi-core-*.img.xz \
+              build/pi-core-installer-*.img.xz \
               build/SHA256SUMS \
               build/SHA256SUMS.sig

@@ -44,9 +44,11 @@ one supported. There is no build-time configuration and nothing to edit on the
 card; a machine is configured after you log into it. Step by step:
 [INSTALL.md](INSTALL.md).
 
-Take the prebuilt image from the [releases page](../../releases), flash
-`pi-core-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher, Rufus
-(DD mode) or `dd`, and boot it. Log in as **`core` / `core`**, at the console or
+Take the installer image from the [releases page](../../releases), flash
+`pi-core-installer-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher,
+Rufus (DD mode) or `dd`, and boot it. It is stock Fedora CoreOS that pulls the
+pi-core container on first boot and reboots into it, so the first boot needs a
+network and takes as long as a ~2.5 GB download. Log in as **`core` / `core`**, at the console or
 over SSH at `pi-core.local`.
 
 That image enables SSH password authentication and advertises itself over mDNS

@@ -33,7 +33,7 @@ ignition:
 firmware:
     ./scripts/fetch-firmware.sh
 
-# Build the flashable .img that gets published — the only supported install
+# Build the flashable installer .img that gets published
 image:
     just ignition
     ./scripts/build-image.sh

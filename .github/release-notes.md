@@ -1,24 +1,37 @@
-# pi-core — flashable Raspberry Pi image
+# pi-core — installer image for Raspberry Pi
 
-Fedora CoreOS (aarch64) with the Raspberry Pi firmware and U-Boot already on
-its EFI partition. On first boot it rebases itself onto the pi-core bootc
-image and reboots twice; after that it is an ordinary bootc host.
+**This is an installer, not pi-core itself.** It is stock Fedora CoreOS
+(aarch64) with the Raspberry Pi firmware and U-Boot on its EFI partition, plus
+a config that installs pi-core on first boot: it pulls the pi-core container
+(~2.5 GB), rebases onto it, and reboots. After that it is an ordinary bootc
+host and nothing is downloaded again until you update.
+
+Two consequences worth knowing before you start:
+
+- **First boot needs a working network**, and takes as long as that download
+  takes. The Pi looks idle throughout.
+- **Until the install finishes, the machine is plain Fedora CoreOS.** Log in
+  by IP address, not `pi-core.local` — the mDNS responder is part of pi-core
+  and is not there yet.
 
 **Pi 5 and Pi 4.** Pi 3 and Zero 2 W are excluded on RAM, not enablement.
 
 ## Flash it
 
-Download `pi-core-*.img.xz`, then write it to an SD card with Raspberry Pi
+Download `pi-core-installer-*.img.xz`, then write it to an SD card with Raspberry Pi
 Imager (choose "Use custom"), balenaEtcher, Rufus in DD/raw mode, or:
 
 ```bash
-xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+xzcat pi-core-installer-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 Move the card to the Pi and power on. Expect 20–30 seconds of blank screen,
 then two reboots while it rebases. The root filesystem grows to fill the card.
 
 ## First login
+
+Wait for the two reboots first — the second one is the machine coming up as
+pi-core.
 
 ```
 user: core

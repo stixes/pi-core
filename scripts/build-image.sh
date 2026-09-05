@@ -1,6 +1,12 @@
 #!/bin/bash
-# Build a flashable Raspberry Pi disk image: Fedora CoreOS (aarch64) with our
-# Ignition config embedded and the Pi firmware + U-Boot on its ESP.
+# Build the flashable pi-core *installer* image: Fedora CoreOS (aarch64) with
+# our Ignition config embedded and the Pi firmware + U-Boot on its ESP.
+#
+# What this produces is not pi-core. It is stock FCOS that installs pi-core:
+# on first boot Ignition rebases the machine onto the pi-core container and
+# reboots into it. Until that finishes the running system is plain Fedora
+# CoreOS, which is worth being precise about -- a machine stuck mid-install
+# looks exactly like a broken pi-core otherwise.
 #
 # This builds the artifact published on the releases page — the only supported
 # way to install pi-core. It is NOT a departure from "rebase, not a disk image"
@@ -20,7 +26,7 @@ cd "$(dirname "$0")/.."
 source ./pi-core.env
 
 IGN="${IGN:-build/pi.ign}"
-OUT="${OUT:-build/pi-core-${FCOS_STREAM}-$(date +%Y%m%d).img}"
+OUT="${OUT:-build/pi-core-installer-${FCOS_STREAM}-$(date +%Y%m%d).img}"
 COMPRESS="${COMPRESS:-1}"
 CACHE="build/fcos"
 

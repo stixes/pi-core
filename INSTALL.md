@@ -1,8 +1,14 @@
 # Installing pi-core on a Raspberry Pi
 
-Download an image, flash it, boot it, log in. That is the whole install, and it
-is the only one supported: there is no build-time configuration and nothing to
-edit on the card. Everything about a machine is set after you log into it.
+Download the installer image, flash it, boot it, log in. That is the whole
+install, and it is the only one supported: there is no build-time configuration
+and nothing to edit on the card. Everything about a machine is set after you
+log into it.
+
+The image is an *installer*: it is stock Fedora CoreOS carrying a config that
+pulls the pi-core container on first boot and reboots into it. Until that
+finishes, the running system is plain Fedora CoreOS — which matters when you
+are trying to work out whether a first boot went well.
 
 ## Supported models
 
@@ -40,12 +46,12 @@ card will wear out faster than you would like.
 
 ## 1. Flash the image
 
-Download `pi-core-*.img.xz` from the [releases page](../../releases) and write
-it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
+Download `pi-core-installer-*.img.xz` from the [releases page](../../releases)
+and write it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
 DD/raw mode. Or:
 
 ```bash
-xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+xzcat pi-core-installer-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 Check the download first if you like — `cosign.pub` is in this repository:
