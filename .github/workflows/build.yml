@@ -148,6 +148,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Release notes come from the annotated tag, and a shallow checkout
+          # does not fetch the tag object -- gh then silently falls back to the
+          # commit message, which is written for us, not for whoever downloads
+          # the image.
+          fetch-tags: true
+          fetch-depth: 0
 
       - name: Load build parameters
         run: |
