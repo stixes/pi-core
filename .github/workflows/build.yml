@@ -209,17 +209,21 @@ jobs:
           else
               TAG="image-$(date +%Y%m%d-%H%M)"
           fi
-          # Anything below v1, or with an -rc suffix, is a prerelease. This has
-          # never booted on real hardware; nothing here is a stable release yet.
+          # Anything below v1, or carrying -rc, is a prerelease.
           PRE=""
           case "$TAG" in
               v0.*|*-rc*|image-*) PRE="--prerelease" ;;
           esac
+          # Notes come from the annotated tag, so they say what changed in this
+          # release. A static notes file cannot: it turns into a manual, and the
+          # manual already lives in README.md and INSTALL.md. A dispatch build
+          # has no annotated tag, so fall back to generated commit notes.
+          NOTES="--notes-from-tag"
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+              NOTES="--generate-notes"
+          fi
           # shellcheck disable=SC2086
-          gh release create "$TAG" $PRE \
-              --title "pi-core $TAG" \
-              --notes-file .github/release-notes.md \
-              || gh release edit "$TAG" --notes-file .github/release-notes.md
+          gh release create "$TAG" $PRE $NOTES --title "pi-core $TAG"
           gh release upload "$TAG" --clobber \
               build/pi-core-*.img.xz \
               build/SHA256SUMS \
