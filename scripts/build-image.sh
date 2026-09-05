@@ -64,6 +64,11 @@ log "installing it to ${LOOP} with bootc"
 # --karg: what the Ignition config used to set. console=tty0 keeps an attached
 #   monitor alive once the kernel starts; the video= caps stop the console
 #   rendering at panel-native resolution (320 columns on a 1440p screen).
+# --filesystem xfs: the image declares mount specs in /usr/lib/bootc/install but
+#   no root filesystem type, because Fedora CoreOS is installed by
+#   coreos-installer and never needed bootc to know. Without this bootc stops
+#   with "No root filesystem specified". xfs is what FCOS uses, confirmed on a
+#   running Pi.
 # --target-no-signature-verification: the image's own bootc config sets
 #   enforce-container-sigpolicy, and the policy shipped in it does not yet carry
 #   our cosign key. We verify the image out of band instead; wiring the key into
@@ -76,6 +81,7 @@ sudo podman run --rm --privileged --pid=host \
     bootc install to-disk \
         --generic-image \
         --wipe \
+        --filesystem xfs \
         --target-no-signature-verification \
         --karg console=tty0 \
         --karg video=HDMI-A-1:1280x720@60 \
