@@ -56,7 +56,8 @@ in `tests/` — see the avahi/`.local` guard for the pattern.
 ```bash
 just                        # list recipes
 just build                  # local aarch64 build (qemu on x86; slow but works)
-just test                   # tier 0 (static) + tier 1 (image assertions)
+just test                   # tier 0 (static) — fast, no build
+just ci                     # push the branch; CI builds + tests on arm64
 just test-supply-chain      # tier 1.5 — the published image
 just test-hardware <host>   # tier 3 — a booted Pi, over SSH, read-only
 just inspect                # sanity-check the built image
@@ -66,11 +67,19 @@ just image                  # build the published .img (+ .xz); needs sudo
 
 ## Tests
 
-`just test` is the gate: `tests/static.sh` (shellcheck, actionlint, ignition
-validation, env-file format and three-way parse agreement) and `tests/image.sh`
-(architecture, firmware-stash completeness, Pi 3/4/5 DTBs, empty `/boot`, unit
-enablement). `just test-supply-chain` checks the *published* image's signature
-and that it is pullable with no credentials.
+`just test` is the fast gate and the one to run while editing: `tests/static.sh`
+only (shellcheck, actionlint, ignition validation, env-file format and three-way
+parse agreement), about 5 seconds, no image needed.
+
+`tests/image.sh` (architecture, firmware-stash completeness, Pi 3/4/5 DTBs,
+empty `/boot`, unit enablement, mDNS, the password drop-in) needs a built image.
+**Do not build it locally to check a change** — emulated dnf under qemu takes
+~25 minutes on x86. Push the branch and let a native arm64 runner do it in well
+under a minute: `just ci` dispatches the workflow and watches it. `just test-all`
+runs both locally if you really want to wait.
+
+`just test-supply-chain` checks the *published* image's signature and that it is
+pullable with no credentials.
 
 On hardware: `just test-hardware <host>` (read-only, over SSH) covers what can
 be scripted. Everything before SSH works is a manual test at the console —

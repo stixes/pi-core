@@ -65,7 +65,8 @@ to close that window for good.
 ```bash
 just                        # list recipes
 just build                  # build locally (qemu on x86; slow but works)
-just test                   # static checks + image assertions
+just test                   # fast static checks (~5 s, no build)
+just ci                     # push the branch; CI builds + tests on arm64
 just inspect                # sanity-check the built image
 just ignition               # render build/pi.ign
 just image                  # build the flashable .img that gets published

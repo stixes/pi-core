@@ -44,8 +44,15 @@ push:
     podman push "$IMAGE_NAME:$DEFAULT_TAG" \
         "ghcr.io/$owner/$IMAGE_NAME:$DEFAULT_TAG"
 
-# Everything that can run without hardware or a registry
-test: test-static test-image
+# Building locally means emulated dnf under qemu: ~25 minutes on x86. So the
+# default gate skips anything needing a built image and CI does that instead,
+# on a native arm64 runner, in well under a minute.
+
+# The fast local gate (~5 s, no image build) — run this while editing
+test: test-static
+
+# Everything runnable locally; needs `just build` first, so expect a wait on x86
+test-all: test-static test-image
 
 # Tier 0: linting, config validation, env-file format (seconds)
 test-static:
@@ -62,6 +69,24 @@ test-supply-chain:
 # Tier 3: assertions against a booted Pi over SSH (read-only)
 test-hardware HOST:
     ./tests/hardware.sh "{{HOST}}"
+
+# Push this branch and watch CI run the full build + image assertions (~90 s)
+ci:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch="$(git rev-parse --abbrev-ref HEAD)"
+    git push -u origin "$branch"
+    # Dispatch explicitly: the workflow's push trigger only covers main, so a
+    # branch push alone would run nothing. publish_image stays false, so this
+    # builds and tests without cutting a release.
+    gh workflow run "Build pi-core" --ref "$branch"
+    for _ in $(seq 1 30); do
+        id="$(gh run list --workflow 'Build pi-core' --branch "$branch" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+        [[ -n "$id" ]] && break
+        sleep 2
+    done
+    [[ -n "${id:-}" ]] || { echo "no run appeared for $branch" >&2; exit 1; }
+    gh run watch "$id" --exit-status
 
 # Used by tests/static.sh to check dotenv parsing agrees with the others
 _print-env:

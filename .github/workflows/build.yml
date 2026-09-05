@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '30 5 * * *'   # daily, after uCore's own builds land
   workflow_dispatch:
+    inputs:
+      publish_image:
+        description: 'Also build the flashable .img and publish it as a release'
+        type: boolean
+        default: false
 
 env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
@@ -125,8 +130,10 @@ jobs:
   release-image:
     name: Publish flashable image
     # Not on every push, and never on the nightly schedule: the asset is ~800 MB.
-    # Tag a release (v*) or run the workflow by hand when you want a new one.
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # Tag a release (v*), or tick publish_image on a manual run. A bare manual
+    # run builds and tests without publishing, which is what `just ci` uses to
+    # check a branch on a native arm64 runner.
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_image
     needs: build
     # x86 is fine and faster: nothing aarch64 is *executed* here. coreos-installer
     # copies an aarch64 disk image byte-for-byte, and fetch-firmware.sh pulls the
