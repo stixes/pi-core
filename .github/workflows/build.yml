@@ -6,6 +6,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+    tags: ['v*']          # a tag is what cuts a release; without this it is inert
     paths-ignore: ['**/*.md', 'docs/**']
   schedule:
     - cron: '30 5 * * *'   # daily, after uCore's own builds land
@@ -201,8 +202,15 @@ jobs:
           else
               TAG="image-$(date +%Y%m%d-%H%M)"
           fi
-          gh release create "$TAG" \
-              --title "pi-core image $TAG" \
+          # Anything below v1, or with an -rc suffix, is a prerelease. This has
+          # never booted on real hardware; nothing here is a stable release yet.
+          PRE=""
+          case "$TAG" in
+              v0.*|*-rc*|image-*) PRE="--prerelease" ;;
+          esac
+          # shellcheck disable=SC2086
+          gh release create "$TAG" $PRE \
+              --title "pi-core $TAG" \
               --notes-file .github/release-notes.md \
               || gh release edit "$TAG" --notes-file .github/release-notes.md
           gh release upload "$TAG" --clobber \

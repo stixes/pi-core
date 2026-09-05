@@ -67,8 +67,16 @@ sha256sum -c SHA256SUMS
 
 `cosign.pub` is in the repository root.
 
-## Status
+## Status — read this first
 
-The boot chain — EEPROM → U-Boot → GRUB → ostree — has limited hardware
-mileage. If it fails to boot, please open an issue with the model of Pi and
-whatever the console showed.
+**This image has never been booted on a real Raspberry Pi.**
+
+It builds, it lints clean, it is signed, and an automated suite checks what the
+image *contains*. None of that exercises the boot chain — EEPROM → U-Boot →
+GRUB → ostree — which is the part most likely to fail, and no automated test
+can reach it. The install steps are derived from Fedora CoreOS's Raspberry Pi 4
+documentation, not from a Pi that booted.
+
+So: expect to debug, keep a serial adapter or a monitor handy, and do not put
+this on anything you care about yet. If it fails, please open an issue with the
+Pi model and whatever the console showed — that is exactly the missing data.
