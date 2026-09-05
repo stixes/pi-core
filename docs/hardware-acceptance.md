@@ -81,7 +81,7 @@ Record the baseline before powering on:
 | Pi model + board revision | printed on the board / `cat /proc/cpuinfo` later |
 | Which UART was used | debug connector (Pi 5) or GPIO header (Pi 4) |
 | Boot medium | SD card or USB SSD, make and size |
-| EEPROM version | shown during the update in INSTALL.md §1 |
+| EEPROM version | `vcgencmd bootloader_version`, or the date shown by the bootloader update |
 | Image digest | `skopeo inspect docker://ghcr.io/<owner>/pi-core:stable \| jq -r .Digest` |
 | Card written at | timestamp |
 
@@ -221,7 +221,7 @@ person can compare against it.
 
 | Stopped at | Look at first |
 |---|---|
-| A1 | EEPROM not updated; the firmware never reached the ESP (built inside a container?); or, on Pi 5, the wrong serial connector |
+| A1 | The firmware never reached the ESP (built inside a container?); on Pi 5, the wrong serial connector; or, on an old board, an EEPROM predating FAT16 ESP support |
 | A2 | `rpi-u-boot.bin` absent or misnamed — `config.txt` must say `kernel=rpi-u-boot.bin` |
 | A3 | GRUB/BLS missing — the FCOS install itself did not complete |
 | A4–A5 | Kernel or initramfs problem; capture the full serial log |

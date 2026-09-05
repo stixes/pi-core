@@ -8,7 +8,7 @@ edit on the card. Everything about a machine is set after you log into it.
 
 | Model | Status | Notes |
 |---|---|---|
-| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§7) |
+| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§6) |
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
 | Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship, but 1 GB (or less) RAM is below what FCOS plus containers wants. May work; untested, unsupported |
 
@@ -19,7 +19,7 @@ edit on the card. Everything about a machine is set after you log into it.
 ## 0. What you need
 
 - A Raspberry Pi 5 or 4
-- SD card, 16 GB or more — plus a second, throwaway card for the EEPROM update
+- SD card, 16 GB or more
 - A card reader, and any imaging tool: Raspberry Pi Imager, balenaEtcher,
   Rufus, or `dd`
 - **Recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails before
@@ -38,17 +38,7 @@ card will wear out faster than you would like.
   is not a boot option, and USB boot is not working in Fedora's Pi 5 support
   either. Use a good endurance-rated card and expect to replace it.
 
-## 1. Update the Pi's EEPROM (one-time, per Pi)
-
-**This is not optional.** Older EEPROMs cannot read the FAT16 EFI partition that
-Fedora CoreOS creates, and the Pi will simply not boot.
-
-Flash the Raspberry Pi *bootloader* image to the throwaway card (Raspberry Pi
-Imager → Misc utility images → Bootloader → SD Card Boot), put it in the Pi,
-and power on. The activity LED flashes rapidly and the screen goes green when
-the update is done — roughly ten seconds. Power off and remove the card.
-
-## 2. Flash the image
+## 1. Flash the image
 
 Download `pi-core-*.img.xz` from the [releases page](../../releases) and write
 it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
@@ -65,7 +55,7 @@ cosign verify-blob --key cosign.pub --signature SHA256SUMS.sig SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
-## 3. First boot
+## 2. First boot
 
 Put the card in the Pi and power on. Then wait — the Pi does a lot here:
 
@@ -82,7 +72,7 @@ watch the serial console if you want to see what it is actually doing.
 
 The root filesystem grows to fill the card on that first boot.
 
-## 4. Log in
+## 3. Log in
 
 ```
 user: core
@@ -103,7 +93,7 @@ it between wireless and wired clients. If `.local` does not answer, get the
 address from your router's DHCP lease table and `ssh core@<address>` — nothing
 else depends on mDNS.
 
-## 5. Recommended next steps
+## 4. Recommended next steps
 
 Nothing here is enforced; the machine is a working Fedora CoreOS host as it
 stands.
@@ -116,7 +106,7 @@ stands.
   collide over mDNS.
 - Set the timezone, and bring up tailscale if you use it.
 
-## 6. Day-to-day
+## 5. Day-to-day
 
 ```bash
 sudo bootc upgrade          # pull a new image; applies on reboot
@@ -142,7 +132,7 @@ sudo systemctl reboot
 This is deliberately not automatic: a bad firmware write bricks the boot and
 there is no rollback for it. Your `config.txt` is preserved.
 
-## 7. Serial console
+## 6. Serial console
 
 Worth wiring up before you need it — **and the wiring differs by model.** This
 is not interchangeable; the device trees disagree about which UART is the
@@ -163,18 +153,30 @@ screen /dev/ttyUSB0 115200      # or: picocom -b 115200 /dev/ttyUSB0
 `stdout-path` from the firmware-provided device tree, so it passes the right
 console through to the kernel without extra configuration.
 
-## 8. If it goes wrong
+## 7. If it goes wrong
 
 | Symptom | Likely cause |
 |---|---|
-| No output at all, ever | EEPROM not updated (step 1) |
+| No output at all, ever | Most likely an old EEPROM — see below |
 | Rainbow screen, then nothing | Firmware loaded but `rpi-u-boot.bin` is missing or unreadable |
 | Boots FCOS but no login | Ignition failed — check the serial console |
 | Login works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
 | `core` / `core` rejected | You already changed it — try the console, or your own password |
 | `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
-| Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§7) |
+| Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§6) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
+
+### No output at all: update the EEPROM
+
+A Pi 4 bootloader from 2019–2020 may not read the FAT16 EFI partition Fedora
+CoreOS creates, and the failure is total silence — no rainbow screen, nothing.
+Any Pi 4 bought or updated in the last few years is almost certainly fine, so
+this is worth trying only when a card that verifies correctly produces nothing.
+
+Flash the Raspberry Pi *bootloader* image to a spare card (Raspberry Pi Imager
+→ Misc utility images → Bootloader → SD Card Boot), boot the Pi from it, and
+wait for the activity LED to flash rapidly and the screen to go green — about
+ten seconds. Power off, remove that card, and try again.
 
 Boot chain, for orientation:
 
