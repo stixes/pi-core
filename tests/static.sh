@@ -100,4 +100,38 @@ else
     fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
 fi
 
+head_ "generic ignition (the published image's config)"
+# This one is shipped to strangers, so assert what it must and must not carry.
+if PI_GENERIC=1 ./scripts/render-ignition.sh >/tmp/gign.out 2>&1; then
+    pass "renders"
+    if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi.ign >/tmp/giv.out 2>&1; then
+        pass "ignition-validate accepts it"
+    else
+        fail "ignition-validate rejected it"; sed 's/^/      /' /tmp/giv.out | head
+    fi
+    # No developer's key may leak into an image handed to strangers.
+    if grep -q sshAuthorizedKeys build/pi.ign; then
+        fail "generic config carries an SSH key — it must ship none"
+    else
+        pass "carries no SSH key"
+    fi
+    if grep -q passwordHash build/pi.ign; then
+        pass "carries a password hash"
+    else
+        fail "no password hash — nothing could log in"
+    fi
+    # A default password that survives setup is the whole risk; the expiry unit
+    # is what bounds it.
+    if grep -q 'pi-core-expire-password.service' build/pi.ign; then
+        pass "expires the default password on first login"
+    else
+        fail "no expiry unit — core/core would persist indefinitely"
+    fi
+else
+    fail "generic render failed"; sed 's/^/      /' /tmp/gign.out | head
+fi
+# Leave build/pi.ign as the personal render, not the generic one: `just flash`
+# and `just image` both consume it and must not silently pick up core/core.
+./scripts/render-ignition.sh >/dev/null 2>&1 || true
+
 summary "tier 0"

@@ -46,16 +46,40 @@ dnf5 remove -y bcm283x-firmware bcm2711-firmware bcm2712-firmware \
 # or `bootc container lint` warns nonempty-boot.
 rm -rf /boot/efi
 
-### 3. Enable units
+### 3. mDNS, so <hostname>.local resolves on the LAN
+#
+# The published image is meant to be reachable with nothing but a flashed card:
+# no serial console, no per-device config, no DHCP-lease archaeology. That needs
+# a responder (avahi publishes), and nss-mdns so this host can resolve other
+# .local names too. Firewalld's zone override in system_files opens 5353.
+dnf5 install -y avahi nss-mdns
+
+# nss-mdns only takes effect once mdns4_minimal is in nsswitch's hosts line,
+# which authselect owns. Use its feature flag so a later `authselect apply`
+# on the device does not quietly drop it; fall back to editing the file if no
+# profile is selected in the build container.
+if authselect enable-feature with-mdns4; then
+    echo "::: mdns4 enabled via authselect"
+else
+    echo "::: no authselect profile; patching /etc/nsswitch.conf directly"
+    sed -i 's/^\(hosts:.*\)resolve/\1mdns4_minimal [NOTFOUND=return] resolve/' /etc/nsswitch.conf
+fi
+grep -E '^hosts:' /etc/nsswitch.conf
+
+### 4. Enable units
 systemctl enable pi-core-firmware-check.service
 systemctl enable pi-core-provision.service
+systemctl enable avahi-daemon.service
 
-### 4. Cleanup
+### 5. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo
 # `countme` state under /var/lib/dnf/repos with no tmpfiles.d entry
 # (var-tmpfiles). Both trip bootc container lint.
 dnf5 clean all
-rm -rf /var/cache/* /var/log/* /tmp/* /run/dnf /var/lib/dnf/repos || true
+# authselect records a checksum under /var, which trips bootc's var-tmpfiles
+# lint (a plain file in /var with no tmpfiles.d entry). The nsswitch.conf it
+# generated lives in /etc and survives; only the bookkeeping goes.
+rm -rf /var/cache/* /var/log/* /tmp/* /run/dnf /var/lib/dnf/repos /var/lib/authselect || true
 
 echo "::: pi-core build complete; firmware stash:"
 find "${FW_STASH}" -maxdepth 1 -printf '%f\n' | sort | head -20

@@ -48,6 +48,11 @@ flash DISK="":
     just ignition
     ./scripts/flash.sh "{{DISK}}"
 
+# Build a flashable .img (FCOS + ignition + Pi firmware) to hand to Rufus/Etcher
+image:
+    just ignition
+    ./scripts/build-image.sh
+
 # Push the locally built image (needs podman login ghcr.io)
 push:
     owner="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"; \

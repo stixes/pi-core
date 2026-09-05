@@ -6,15 +6,21 @@ they go stale on a different clock than the code.
 
 ## Rebase, not a disk image
 
-We never build a disk image. Stock Fedora CoreOS is flashed to the card, the Pi
-firmware is added to its ESP, and Ignition rebases the machine onto our image on
-first boot.
+We never bake our customisations into a disk image. Stock Fedora CoreOS is
+flashed to the card, the Pi firmware is added to its ESP, and Ignition rebases
+the machine onto our image on first boot.
 
 - It is the only Pi path Fedora documents and tests.
 - Customisation stays a Containerfile, so CI builds it and the device pulls it —
   no image-building pipeline to maintain.
 - It avoids an unproven question: whether Ignition behaves on a disk produced by
   `image-builder` rather than by `coreos-installer`.
+
+`scripts/build-image.sh` does emit an `.img`, and it is not an exception to any
+of the above: it runs the same `coreos-installer` against a loop-mounted file
+instead of a card, so the bytes, the Ignition path and the first-boot rebase are
+identical. Only the delivery changes. It is still not an `image-builder` disk,
+and there is still no image-building pipeline in the customisation path.
 
 ## U-Boot, not an EDK2 chainloader
 
@@ -27,7 +33,53 @@ machine. U-Boot's EFI layer has fewer moving parts and needs no console.
 
 The full variant adds storage tooling including `mergerfs`, which has no aarch64
 build. Minimal already carries what a Pi needs: bootc, docker+podman, tailscale,
-cockpit, firewalld.
+firewalld.
+
+Not cockpit: `/usr/share/cockpit` exists but `cockpit-ws` does not, so nothing
+listens on :9090. That absence is load-bearing now — see below — and
+`tests/image-assertions.sh` fails if `cockpit-ws` ever appears.
+
+## Default credentials on the published image
+
+The image on the releases page ships `core` / `core`, with SSH password
+authentication enabled and the password expired so the first login must replace
+it. Stock Fedora CoreOS disables password authentication; we re-enable it in
+`10-pi-core-passwords.conf`, which has to sort before FCOS's
+`40-disable-passwords.conf` because sshd takes the first value it obtains for a
+keyword.
+
+The point is an image that works with nothing but a flashed card — no serial
+adapter, no per-device config, no key baked in for one person. That is what
+DietPi and Raspberry Pi OS have always done, and it is the reason either is
+usable by someone who owns one Pi and no lab.
+
+What it costs, stated plainly: between first boot and first login, the machine
+accepts a password that is published in the release notes, from anywhere on the
+LAN, and mDNS tells the LAN where to find it. The mitigations are narrow and
+deliberate:
+
+- the password is expired, so the window closes at first login, not whenever
+  the owner gets around to it;
+- `cockpit-ws` is absent, so there is no browser-shaped second front door on
+  :9090 — uCore enables password auth for localhost, which a web login would
+  otherwise turn into a remote credential;
+- the risk is documented where someone about to flash it will read it, not
+  buried here.
+
+Someone who wants none of this builds their own image: `just ignition` bakes in
+an SSH key and leaves password authentication off.
+
+## mDNS, reversing an earlier decision
+
+The image runs `avahi-daemon` and opens `mdns` in the firewall's default zone,
+so `<hostname>.local` resolves. This repo previously asserted the opposite — the
+image test failed if avahi appeared, because INSTALL.md promised `.local` would
+not resolve.
+
+It changed for the same reason as the default password: an image handed to
+someone else has to be findable without reading a DHCP lease table off a router
+they may not administer. The assertion was inverted rather than deleted, so
+losing the responder now fails the build.
 
 ## Pi 5 primary, Pi 4 supported, Pi 3 not a target
 

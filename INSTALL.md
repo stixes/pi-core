@@ -19,6 +19,24 @@ on twice.
 > Raspberry Pi 4 documentation and from what the built image actually contains,
 > but no one has run it end to end on a real Pi yet. Expect to debug.
 
+## Shortcut: the published image
+
+If you just want a running Pi and do not need your own SSH key baked in, skip
+everything below and take the prebuilt image from the
+[releases page](../../releases): flash `pi-core-*.img.xz`, boot it, and log in
+as **`core` / `core`** — at the console, or over SSH at `pi-core.local` once it
+has an address. The password is expired on delivery, so the first login makes
+you change it.
+
+That image enables SSH password authentication and advertises itself over mDNS,
+which is what makes a card-only install possible and also means the published
+credentials are reachable from the LAN until you finish that first login. On a
+network you do not control, log in from a console before connecting Ethernet.
+See `docs/design-decisions.md` for why it is built that way.
+
+The rest of this document is the build-it-yourself path, which bakes in your
+own SSH key instead.
+
 ## 0. What you need
 
 - A Raspberry Pi 5 or 4
@@ -138,6 +156,35 @@ The script asks you to type the device name back before it does anything. It
 then downloads Fedora CoreOS (~1 GB), writes it, fetches the Raspberry Pi
 firmware, and copies the firmware onto the card's EFI partition.
 
+### Or: build an image file and flash it elsewhere
+
+`just flash` writes straight to a card on this machine. If you would rather
+flash with Rufus, balenaEtcher or `dd` — on another machine, or to several
+cards — build the image as a file instead:
+
+```bash
+just image
+```
+
+It writes `build/pi-core-<stream>-<date>.img` (~2.9 GB) and an `.xz` alongside
+it. Flash either one; Rufus needs DD/raw mode. Set `COMPRESS=0` to skip the
+compressed copy.
+
+The result is byte-for-byte what `just flash` would have put on the card: the
+same `coreos-installer` writes the same stock Fedora CoreOS, with the same
+Ignition config embedded and the same Pi firmware on the ESP. It is not an
+`image-builder` disk (see `docs/design-decisions.md`) — only the delivery
+differs.
+
+It needs `sudo` for loop devices and mounting the ESP, and must run on the host
+rather than in Toolbx/distrobox, for the same UID-mapping reason as `just
+flash`. The downloaded Fedora CoreOS image is cached in `build/fcos/` and
+reused; `rm -rf build/fcos` to pick up a newer one.
+
+Because the card's FAT partition is readable anywhere, Windows included, the
+usual sequence is: flash, re-insert the card, then edit `pi-core.conf` on it as
+in step 2b.
+
 ## 4. First boot
 
 Put the card in the Pi and power on. Then wait — the Pi does a lot here:
@@ -155,17 +202,24 @@ watch the serial console if you want to see what it is actually doing.
 
 ## 5. Find it on the network
 
-**`pi-core.local` will not work.** The image has no avahi and no `nss-mdns`, and
-systemd-resolved's `MulticastDNS` defaults to `no` — nothing answers mDNS.
-
-Get the address from your router's DHCP lease table, then:
+The image runs `avahi-daemon` and opens mdns in the default firewall zone, so
+the host answers to its own name:
 
 ```bash
-ssh core@<address>
+ssh core@pi-core.local
 ```
 
-(If you want `.local` to work, add `avahi` and `nss-mdns` to
-`build_files/build.sh` and enable `avahi-daemon`. It is not in the image today.)
+Use whatever you set `PI_HOSTNAME` to, not `pi-core`, if you changed it.
+
+mDNS is best-effort: some networks block multicast, and a few consumer APs drop
+it between wireless and wired clients. If `.local` does not answer, fall back to
+your router's DHCP lease table and `ssh core@<address>` — nothing else depends
+on mDNS.
+
+*(This reverses an earlier promise that `.local` would never resolve. It exists
+now because the published image has to be reachable with nothing but a flashed
+card. `tests/image-assertions.sh` fails if the responder ever disappears
+again.)*
 
 ## 6. Verify
 

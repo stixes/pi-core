@@ -39,6 +39,24 @@ the rest of the reasoning: [docs/design-decisions.md](docs/design-decisions.md).
 
 Step-by-step from a blank card: [INSTALL.md](INSTALL.md).
 
+## Just want a running Pi?
+
+Take the prebuilt image from the [releases page](../../releases), flash
+`pi-core-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher, Rufus
+(DD mode) or `dd`, and boot it. Log in as **`core` / `core`**, at the console or
+over SSH at `pi-core.local`; the password is expired, so the first login makes
+you change it.
+
+That image enables SSH password authentication and advertises itself over mDNS
+so it can be reached with nothing but a flashed card — which also means the
+published password works from anywhere on the LAN until you finish that first
+login. On a network you do not control, log in from a console before connecting
+Ethernet. The reasoning is in
+[docs/design-decisions.md](docs/design-decisions.md#default-credentials-on-the-published-image).
+
+Building it yourself instead bakes in your own SSH key and leaves password
+authentication off.
+
 ## Usage
 
 ```bash
@@ -49,6 +67,7 @@ just inspect                # sanity-check the built image
 just ignition               # render build/pi.ign
 just password-hash          # console password hash (see INSTALL.md)
 just flash /dev/sdX         # DESTRUCTIVE: FCOS + firmware onto a card
+just image                  # build a flashable .img instead of writing a card
 just test-supply-chain      # verify the published image's signature
 just test-hardware <host>   # assertions against a booted Pi, over SSH
 ```

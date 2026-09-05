@@ -14,8 +14,10 @@ Published to `ghcr.io/<owner>/pi-core:stable` (public, cosign-signed), where
 
 ## Model
 
-We never build a disk image. Stock FCOS is flashed to the card, the Pi firmware
-goes on its ESP, and Ignition rebases the machine onto our image on first boot.
+We never bake our customisations into a disk image. Stock FCOS is flashed to the
+card (or to a loop-mounted file by `scripts/build-image.sh`, same bytes), the Pi
+firmware goes on its ESP, and Ignition rebases the machine onto our image on
+first boot.
 After that it is an ordinary bootc host. Customisation lives in `Containerfile`
 + `build_files/build.sh`; CI builds it on a native arm64 runner and the device
 pulls it.
@@ -61,6 +63,7 @@ just inspect                # sanity-check the built image
 just ignition               # render build/pi.ign
 just password-hash          # console password hash for the ignition config
 just flash /dev/sdX         # DESTRUCTIVE
+just image                  # flashable .img (+ .xz) for Rufus/Etcher/dd
 ```
 
 ## Tests
@@ -75,8 +78,11 @@ On hardware: `just test-hardware <host>` (read-only, over SSH) covers what can
 be scripted. Everything before SSH works is a manual test at the console —
 `docs/hardware-acceptance.md` is the procedure.
 
-Assertions double as documentation guards: the image test fails if avahi
-appears, because INSTALL.md promises `.local` does not resolve. If you change
+Assertions double as documentation guards: the image test fails if the mDNS
+responder *disappears*, because INSTALL.md promises `.local` resolves, and fails
+if `cockpit-ws` appears, because the default password must not gain a web front
+door. (The avahi guard used to assert the opposite; it was inverted, not
+deleted, when the published image needed to be findable.) If you change
 behaviour a test asserts, update the docs in the same commit.
 
 Green CI is not proof — verify the artifact:
@@ -117,6 +123,16 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 - **The Ignition template is model-agnostic** — nothing in `ignition/pi.bu.in`
   is Pi 4 or Pi 5 specific, and it should stay that way. If a model needs its
   own config, that is a second template, not a conditional.
+- **The published image ships `core` / `core` on purpose.** SSH password auth is
+  on (`10-pi-core-passwords.conf`, which must keep sorting before FCOS's
+  `40-disable-passwords.conf` — sshd takes the *first* value for a keyword) and
+  the password is expired by the generic Ignition so first login must change it.
+  Do not "harden" this by disabling password auth: it is what makes a card-only
+  install work. Do keep `cockpit-ws` out — uCore enables password auth on
+  localhost, so a web login on :9090 would turn a console credential into a
+  remote one. `PI_GENERIC=1 ./scripts/render-ignition.sh` renders that config;
+  plain `just ignition` renders the personal one and must never grow a default
+  password.
 - **`console=tty0` and the optional console password are not clutter.** Without
   the karg an attached monitor goes blank when the kernel starts; without a
   password a machine that boots but never reaches the network cannot be logged

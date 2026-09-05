@@ -45,13 +45,48 @@ for b in bootc rpm-ostree docker podman tailscale; do
     check "$b present" command -v "$b"
 done
 
-head_ "documented assumptions"
-# INSTALL.md tells the user <host>.local will NOT resolve. If someone adds an
-# mDNS responder, this fails so the docs get updated with it.
-if rpm -q avahi >/dev/null 2>&1 || rpm -q nss-mdns >/dev/null 2>&1; then
-    fail "avahi/nss-mdns present — INSTALL.md says .local does not resolve; update the docs"
+head_ "mDNS (INSTALL.md promises <host>.local resolves)"
+# The inverse of the guard this repo used to carry: .local resolving is now a
+# promise, so losing the responder has to fail the build rather than quietly
+# strand every user who was told to ssh core@pi-core.local.
+check "avahi installed" rpm -q avahi
+check "nss-mdns installed" rpm -q nss-mdns
+check "avahi-daemon is enabled" test -L /etc/systemd/system/multi-user.target.wants/avahi-daemon.service
+if grep -qE '^hosts:.*mdns4' /etc/nsswitch.conf; then
+    pass "nsswitch hosts line consults mdns4"
 else
-    pass "no mDNS responder (matches INSTALL.md)"
+    fail "nsswitch hosts line has no mdns4 — nss-mdns is installed but inert: $(grep -E '^hosts:' /etc/nsswitch.conf)"
+fi
+if grep -q '<service name="mdns"/>' /etc/firewalld/zones/FedoraServer.xml 2>/dev/null; then
+    pass "firewalld default zone opens mdns"
+else
+    fail "firewalld default zone does not open mdns — avahi would be unreachable"
+fi
+
+head_ "default credentials are reachable on purpose"
+# The published image ships core/core and relies on SSH password auth. sshd
+# takes the FIRST value for a keyword and reads sshd_config.d in lexical order,
+# so our file only works while it sorts before FCOS's 40-disable-passwords.conf.
+PWCONF=/etc/ssh/sshd_config.d/10-pi-core-passwords.conf
+check "password-auth drop-in present" test -f "$PWCONF"
+if grep -qE '^\s*PasswordAuthentication\s+yes' "$PWCONF" 2>/dev/null; then
+    pass "drop-in enables PasswordAuthentication"
+else
+    fail "$PWCONF does not enable PasswordAuthentication"
+fi
+FIRST=$(find /etc/ssh/sshd_config.d -name '*.conf' -printf '%f\n' 2>/dev/null | sort | head -1)
+if [[ "$FIRST" == "10-pi-core-passwords.conf" ]]; then
+    pass "it sorts first, so it wins over 40-disable-passwords.conf"
+else
+    fail "$FIRST sorts before ours — password auth would stay disabled"
+fi
+
+# cockpit-ws would put a PAM web login on :9090, turning the documented default
+# password into a second, browser-shaped front door. Keep it out deliberately.
+if rpm -q cockpit-ws >/dev/null 2>&1; then
+    fail "cockpit-ws present — core/core would be usable from a browser on :9090"
+else
+    pass "no cockpit-ws (default password stays SSH/console only)"
 fi
 
 summary "tier 1 (in-image)"

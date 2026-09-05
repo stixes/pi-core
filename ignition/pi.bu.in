@@ -1,16 +1,21 @@
 # pi-core first-boot config (Fedora CoreOS aarch64). Model-agnostic: nothing
 # here is Pi 4 or Pi 5 specific.
 #
-# Template: scripts/render-ignition.sh substitutes @SSH_PUBKEY@, @HOSTNAME@
-# and @IMAGE@. Do not edit the rendered .ign by hand.
+# Template: scripts/render-ignition.sh substitutes @HOSTNAME@ and @IMAGE@, and
+# either fills in or deletes the single-line @-placeholders below. Do not edit
+# the rendered .ign by hand.
+#
+# Both credential lines are optional, and which are present depends on how the
+# config was rendered: a personal build bakes in an SSH key, the published
+# generic image ships a default password and no key at all.
 variant: fcos
 version: 1.5.0
 
 passwd:
   users:
     - name: core
-      ssh_authorized_keys:
-        - "@SSH_PUBKEY@"
+@SSH_KEYS_LINE@
+@SSH_KEY_ITEM@
 @PASSWORD_LINE@
       groups:
         - sudo
