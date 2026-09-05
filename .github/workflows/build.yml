@@ -155,11 +155,21 @@ jobs:
           echo "REPO_ORGANIZATION=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
       - name: Install host prerequisites
-        # scripts/fetch-firmware.sh extracts the Fedora firmware RPMs on the
-        # host, and an Ubuntu runner has neither rpm2cpio (from `rpm`) nor cpio.
+        # fetch-firmware.sh extracts the Fedora firmware RPMs on the host, and
+        # an Ubuntu runner has neither rpm2cpio (from `rpm`) nor cpio. rsync,
+        # xz and jq are usually present but are not guaranteed across runner
+        # image revisions, and this job is too slow to rediscover that.
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends rpm cpio
+          sudo apt-get install -y --no-install-recommends \
+            rpm cpio rsync xz-utils jq fdisk
+
+      - name: Show the tools this job depends on
+        # One line of evidence beats another five-minute round trip.
+        run: |
+          for c in losetup sfdisk partprobe rsync xz jq truncate numfmt; do
+            printf '%-10s %s\n' "$c" "$(command -v "$c" || echo MISSING)"
+          done
 
       - name: Render the Ignition config
         run: ./scripts/render-ignition.sh

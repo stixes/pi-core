@@ -91,13 +91,24 @@ sudo podman run --pull=newer --rm --privileged \
 log "fetching Raspberry Pi firmware"
 ./scripts/fetch-firmware.sh build/rpi-firmware
 
+# Re-attach before looking for partitions. --partscan only scans at attach
+# time, and at attach time this file was all zeros: coreos-installer wrote the
+# partition table afterwards, so the kernel never saw it and no ${LOOP}pN
+# devices exist. Detaching and re-attaching is what makes them appear.
+sudo losetup -d "${LOOP}"
+LOOP="$(sudo losetup --find --show --partscan "${TMP}")"
+[[ -b "${LOOP}" ]] || die "losetup did not give us a block device on re-attach"
 sudo udevadm settle
 sudo partprobe "${LOOP}" 2>/dev/null || true
 
 ESP="$(sudo lsblk "${LOOP}" -J -o LABEL,PATH \
        | jq -r '.blockdevices[] | .. | objects | select(.label=="EFI-SYSTEM") | .path' \
        | head -1)"
-[[ -n "${ESP}" ]] || die "could not find the EFI-SYSTEM partition on ${LOOP}"
+if [[ -z "${ESP}" ]]; then
+    echo "build-image: no EFI-SYSTEM partition on ${LOOP}. lsblk sees:" >&2
+    sudo lsblk "${LOOP}" -o NAME,LABEL,FSTYPE,SIZE >&2 || true
+    die "could not find the EFI-SYSTEM partition on ${LOOP}"
+fi
 
 MNT="$(mktemp -d)"
 sudo mount "${ESP}" "${MNT}"
