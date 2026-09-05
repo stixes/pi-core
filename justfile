@@ -25,17 +25,12 @@ inspect:
         echo "== firmware stash =="; ls -1 /usr/lib/pi-core/firmware; \
         echo "== versions =="; cat /usr/lib/pi-core/firmware/.versions'
 
-# Render build/pi.ign from the butane template (used by `just image`)
-ignition:
-    ./scripts/render-ignition.sh
-
 # Download the Raspberry Pi firmware payload
 firmware:
     ./scripts/fetch-firmware.sh
 
-# Build the flashable installer .img that gets published
+# Build the flashable pi-core .img that gets published
 image:
-    just ignition
     ./scripts/build-image.sh
 
 # Push the locally built image (needs podman login ghcr.io)

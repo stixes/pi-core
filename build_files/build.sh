@@ -66,11 +66,50 @@ else
 fi
 grep -E '^hosts:' /etc/nsswitch.conf
 
-### 4. Enable units
+### 4. The core user
+#
+# Ignition created this on the old installer image. A pre-rebased image has no
+# Ignition, so the account has to exist in the image itself. Declared in
+# sysusers.d rather than by useradd: a bare /etc/passwd entry trips
+# `bootc container lint`. systemd-sysusers materialises it here so the account
+# is in the image, not created on first boot.
+#
+# No home directory: /home is a symlink to /var/home, /var is not part of a
+# bootc image, and writing into it trips the lint too. tmpfiles.d creates it.
+#
+# The password is the published default and is meant to be. chpasswd hashes it
+# with the system default (yescrypt), so no hashing tool is needed at build
+# time and no credential-shaped string is committed.
+DEFAULT_PASSWORD="${PI_DEFAULT_PASSWORD:-core}"
+systemd-sysusers /usr/lib/sysusers.d/pi-core.conf
+echo "core:${DEFAULT_PASSWORD}" | chpasswd
+echo "::: created user core (password: ${DEFAULT_PASSWORD})"
+
+### 5. Drop device trees for boards this image excludes
+#
+# The kernel ships 2386 DTBs covering every aarch64 board Fedora supports, and
+# every one of them is copied into /boot for each deployment. That is 56-83 MB
+# a deployment out of a 384 MB boot partition that bootc does not let us
+# resize, and it is why a real Pi failed to stage an update with
+#   Installing kernel: Copying rk3588-armsom-sige7.dtb: No space left on device
+# Keeping only Broadcom brings a deployment down to about 110 MB, so two fit.
+#
+# Safe because this image is Pi-only by design; tests/image-assertions.sh still
+# requires the Pi 3/4/5 DTBs, which fails loudly if this prunes too much.
+for dtbdir in /usr/lib/modules/*/dtb; do
+    [[ -d "${dtbdir}" ]] || continue
+    before=$(du -sm "${dtbdir}" | cut -f1)
+    find "${dtbdir}" -mindepth 1 -maxdepth 1 ! -name broadcom -exec rm -rf {} +
+    after=$(du -sm "${dtbdir}" | cut -f1)
+    echo "::: pruned $(basename "$(dirname "${dtbdir}")") device trees: ${before} MB -> ${after} MB"
+done
+
+### 6. Enable units
 systemctl enable pi-core-firmware-check.service
 systemctl enable avahi-daemon.service
+systemctl enable pi-core-growfs.service
 
-### 5. Cleanup
+### 7. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo
 # `countme` state under /var/lib/dnf/repos with no tmpfiles.d entry
 # (var-tmpfiles). Both trip bootc container lint.

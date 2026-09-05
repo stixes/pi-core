@@ -18,16 +18,17 @@ for Raspberry Pi, for my personal homelab.
 
 ## How it works
 
-1. Flash a card with stock **Fedora CoreOS** (aarch64) using `coreos-installer`.
-2. Drop the Raspberry Pi firmware + U-Boot onto the card's ESP, because the Pi's
-   boot ROM is not UEFI and cannot boot FCOS on its own.
-3. On first boot, Ignition rebases the machine onto **our** image and reboots
-   into it.
-4. From then on it is an ordinary bootc host: `bootc upgrade`, atomic, rollback.
+1. CI builds the pi-core container on a native arm64 runner and signs it.
+2. `bootc install to-disk` deploys that container onto a disk image, so the
+   image *is* pi-core rather than an installer for it.
+3. The Raspberry Pi firmware + U-Boot go onto the image's ESP, because the Pi's
+   boot ROM is not UEFI and cannot boot Fedora CoreOS on its own.
+4. Flash, boot once, log in. Nothing is downloaded and no network is needed to
+   reach a usable machine.
+5. From then on it is an ordinary bootc host: `bootc upgrade`, atomic, rollback.
 
-We never build a disk image. The customisation lives in `Containerfile` +
-`build_files/build.sh`, gets built by CI on a native arm64 runner, and the
-device pulls it.
+Customisation lives in `Containerfile` + `build_files/build.sh`. The device
+pulls that same container for updates; only the first boot is pre-baked.
 
 ```
 Pi EEPROM  ->  config.txt (kernel=rpi-u-boot.bin)  ->  U-Boot
@@ -44,11 +45,10 @@ one supported. There is no build-time configuration and nothing to edit on the
 card; a machine is configured after you log into it. Step by step:
 [INSTALL.md](INSTALL.md).
 
-Take the installer image from the [releases page](../../releases), flash
-`pi-core-installer-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher,
-Rufus (DD mode) or `dd`, and boot it. It is stock Fedora CoreOS that pulls the
-pi-core container on first boot and reboots into it, so the first boot needs a
-network and takes as long as a ~2.5 GB download. Log in as **`core` / `core`**, at the console or
+Take the image from the [releases page](../../releases), flash
+`pi-core-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher, Rufus
+(DD mode) or `dd`, and boot it. The image is pi-core itself, deployed with
+`bootc install`, so first boot needs no network and downloads nothing. Log in as **`core` / `core`**, at the console or
 over SSH at `pi-core.local`.
 
 That image enables SSH password authentication and advertises itself over mDNS
@@ -70,7 +70,6 @@ just build                  # build locally (qemu on x86; slow but works)
 just test                   # fast static checks (~5 s, no build)
 just ci                     # push the branch; CI builds + tests on arm64
 just inspect                # sanity-check the built image
-just ignition               # render build/pi.ign
 just image                  # build the flashable .img that gets published
 just test-supply-chain      # verify the published image's signature
 just test-hardware <host>   # assertions against a booted Pi, over SSH
@@ -89,10 +88,8 @@ loop devices and mounting the image's EFI partition.
 | `Containerfile` | `FROM ucore-minimal:stable`, runs `build.sh` |
 | `build_files/build.sh` | Package installs + the firmware stash |
 | `system_files/` | Overlay copied to `/` (the `pi-core-firmware` helper and its unit) |
-| `ignition/pi.bu.in` | Butane template for first boot (login + autorebase); model-agnostic |
 | `scripts/fetch-firmware.sh` | Pull + extract the Pi firmware payload |
-| `scripts/render-ignition.sh` | Template -> `build/pi.ign` |
-| `scripts/build-image.sh` | FCOS + firmware -> the published `.img` |
+| `scripts/build-image.sh` | `bootc install` + firmware -> the published `.img` |
 | `scripts/repo-owner.sh` | Derives the GHCR owner; never hardcoded |
 | `tests/` | static / image / supply-chain / hardware tiers |
 | `docs/design-decisions.md` | Why the code looks the way it does |
@@ -101,13 +98,15 @@ loop devices and mounting the image's EFI partition.
 
 ## Testing
 
-`just test` runs without hardware or a registry: shellcheck, actionlint,
-Ignition validation, and assertions against the built image (architecture,
-firmware-stash completeness, Pi 3/4/5 DTBs, empty `/boot`, unit enablement).
+`just test` is the fast local gate: shellcheck, actionlint and config checks,
+about five seconds, no image build. `just test-image` asserts against a built
+image (architecture, firmware stash, Pi 3/4/5 DTBs, empty `/boot`, the `core`
+user, growfs, mDNS, the password drop-in) — building locally means emulated dnf
+under qemu, so `just ci` hands that to a native arm64 runner instead.
 
 `just test-supply-chain` checks the *published* image — that its cosign
 signature verifies, and that it can be pulled with **no credentials**, which is
-what the Pi does during the first-boot rebase.
+what the Pi does when it pulls an update.
 
 `just test-hardware <host>` is the part that needs a booted Pi. Everything
 before SSH works is a manual test at the console; see
@@ -142,10 +141,11 @@ gitignored locally as `cosign.key`.
 cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable"
 ```
 
-**The rebase itself is still unsigned.** The Ignition config uses
-`ostree-unverified-registry:` because the image does not yet ship a
-container-policy entry for this key. Wiring that in is the next step toward a
-verified boot chain.
+**The image install is still unsigned.** `build-image.sh` passes
+`--target-no-signature-verification` because the container policy shipped in
+the image does not yet carry this key. The image is verified out of band
+instead. Wiring the key into `policy.json` is the next step toward a verified
+boot chain, and it also matters for `bootc upgrade` on the device.
 
 ## Forking
 

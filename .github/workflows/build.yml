@@ -136,10 +136,10 @@ jobs:
     # check a branch on a native arm64 runner.
     if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_image
     needs: build
-    # x86 is fine and faster: nothing aarch64 is *executed* here. coreos-installer
-    # copies an aarch64 disk image byte-for-byte, and fetch-firmware.sh pulls the
-    # RPMs with --forcearch=aarch64.
-    runs-on: ubuntu-24.04
+    # Must be arm64 now: `bootc install` executes the target image's own bootc
+    # binary, so this is no longer just copying bytes around. Native beats
+    # binfmt here -- the install does real filesystem work.
+    runs-on: ubuntu-24.04-arm
 
     permissions:
       contents: write   # create the release and upload assets to it
@@ -171,16 +171,13 @@ jobs:
             printf '%-10s %s\n' "$c" "$(command -v "$c" || echo MISSING)"
           done
 
-      - name: Render the Ignition config
-        run: ./scripts/render-ignition.sh
-
       - name: Build the flashable image
         run: ./scripts/build-image.sh
 
       - name: Checksum
         run: |
           cd build
-          sha256sum pi-core-installer-*.img.xz > SHA256SUMS
+          sha256sum pi-core-*.img.xz > SHA256SUMS
           cat SHA256SUMS
 
       - name: Install cosign
@@ -224,6 +221,6 @@ jobs:
               --notes-file .github/release-notes.md \
               || gh release edit "$TAG" --notes-file .github/release-notes.md
           gh release upload "$TAG" --clobber \
-              build/pi-core-installer-*.img.xz \
+              build/pi-core-*.img.xz \
               build/SHA256SUMS \
               build/SHA256SUMS.sig

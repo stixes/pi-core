@@ -4,23 +4,46 @@ Why the code looks the way it does. Short and durable by intent — point-in-tim
 research and deployment planning are deliberately kept out of this repo, since
 they go stale on a different clock than the code.
 
-## Rebase, not a disk image
+## A pre-rebased image, not an installer
 
-We never bake our customisations into a disk image. Stock Fedora CoreOS is
-flashed to the card, the Pi firmware is added to its ESP, and Ignition rebases
-the machine onto our image on first boot.
+`scripts/build-image.sh` runs `bootc install to-disk` to deploy the pi-core
+container straight onto the disk image. A flashed card boots the finished
+system: one boot, no rebase, nothing downloaded.
 
-- It is the only Pi path Fedora documents and tests.
-- Customisation stays a Containerfile, so CI builds it and the device pulls it —
-  no image-building pipeline to maintain.
-- It avoids an unproven question: whether Ignition behaves on a disk produced by
-  `image-builder` rather than by `coreos-installer`.
+This replaced an earlier model where we shipped stock Fedora CoreOS plus an
+Ignition config that pulled the pi-core container on first boot and rebased
+onto it. That was chosen because it was the only Pi path Fedora documented, it
+kept customisation in a Containerfile, and it avoided an unproven question
+about whether Ignition behaves on a disk produced by something other than
+`coreos-installer`.
 
-`scripts/build-image.sh` does emit an `.img`, and it is not an exception to any
-of the above: it runs the same `coreos-installer` against a loop-mounted file
-instead of a card, so the bytes, the Ignition path and the first-boot rebase are
-identical. Only the delivery changes. It is still not an `image-builder` disk,
-and there is still no image-building pipeline in the customisation path.
+The first boot on real hardware is what settled it. The rebase made first boot
+depend on the network, the clock and a registry, and all three are things a
+Raspberry Pi is bad at on day one: it has no battery-backed clock, so it woke
+up in the past and every TLS handshake to ghcr.io failed "certificate is not
+yet valid". Worse, everything that made the machine *reachable* — password SSH,
+the mDNS responder — arrived with the image the rebase had failed to pull, so
+a failure left no way in at all.
+
+Installing the image at build time removes that entire class of failure by
+construction, and with it the autorebase unit, the `chrony-wait` ordering, the
+Ignition config, and the two-reboot dance.
+
+It costs three things Ignition had been providing for free, all now build-time
+and all asserted in `tests/image-assertions.sh`:
+
+- the `core` user, declared in `sysusers.d` (a bare `/etc/passwd` entry trips
+  `bootc container lint`);
+- root filesystem growth, which Fedora CoreOS does in its initramfs but only on
+  an Ignition firstboot — `pi-core-growfs.service` does it instead;
+- `--target-no-signature-verification` at install time, because the image's own
+  bootc config sets `enforce-container-sigpolicy` and the policy it ships does
+  not yet carry our cosign key. Wiring that key in is the follow-up that lets
+  the flag go away.
+
+Customisation still lives in `Containerfile` + `build_files/build.sh`, and the
+machine is still an ordinary bootc host that updates by pulling the same
+container. Only the first boot changed.
 
 ## U-Boot, not an EDK2 chainloader
 

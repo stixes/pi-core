@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 # shellcheck source=tests/lib.sh
 source tests/lib.sh
 # Load config here too: running this script directly gets none of just's
-# dotenv-load exports, and the ignition check below needs them.
+# dotenv-load exports, and the checks below need them.
 # shellcheck disable=SC1091
 set -a; source ./pi-core.env; set +a
 
@@ -50,60 +50,20 @@ else fail "shell source != CI filter"; diff /tmp/env.source /tmp/env.ci | sed 's
 if diff -q /tmp/env.source /tmp/env.just >/dev/null; then pass "shell source == just dotenv"
 else fail "shell source != just dotenv"; diff /tmp/env.source /tmp/env.just | sed 's/^/      /'; fi
 
-head_ "ignition (the published image's config)"
-# This config is shipped to strangers, so assert what it must and must not carry.
-if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
-    pass "butane --strict renders build/pi.ign"
-    if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi.ign >/tmp/iv.out 2>&1; then
-        pass "ignition-validate accepts the output"
+head_ "the image build passes the console kargs"
+# These moved from the Ignition config to bootc install --karg. Nothing in the
+# built image records them, so this is the only place the promise can be guarded.
+for karg in 'console=tty0' 'video=HDMI-A-1:1280x720' 'video=HDMI-A-2:1280x720'; do
+    if grep -q -- "$karg" scripts/build-image.sh; then
+        pass "passes $karg"
     else
-        fail "ignition-validate rejected the output"; sed 's/^/      /' /tmp/iv.out | head
+        fail "build-image.sh no longer passes $karg"
     fi
-    # The rebase target must match the image this repo publishes.
-    OWNER="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"
-    # SC2031: IMAGE_NAME/DEFAULT_TAG come from the top-level source above,
-    # not the subshell used by the three-way parse check.
-    # shellcheck disable=SC2031
-    WANT="ghcr.io/${OWNER}/${IMAGE_NAME:?}:${DEFAULT_TAG:?}"
-    if grep -q "$WANT" build/pi.ign; then pass "autorebase targets $WANT"; else fail "autorebase does not target $WANT"; fi
-    # No developer's key may reach an image handed to strangers.
-    if grep -q sshAuthorizedKeys build/pi.ign; then
-        fail "carries an SSH key — the published config must ship none"
-    else
-        pass "carries no SSH key"
-    fi
-    if grep -q passwordHash build/pi.ign; then
-        pass "carries a password hash"
-    else
-        fail "no password hash — nothing could log in"
-    fi
-    # The Pi has no RTC. Without chrony-wait enabled, time-sync.target is
-    # reached instantly and the autorebase pulls with a bogus clock, which
-    # fails the registry's TLS cert. This stranded the first real hardware boot.
-    if grep -q 'chrony-wait.service' build/pi.ign; then
-        pass "enables chrony-wait (makes time-sync.target mean something)"
-    else
-        fail "chrony-wait not enabled — autorebase will pull with an unset clock"
-    fi
-    if grep -q 'time-sync.target' build/pi.ign; then
-        pass "autorebase waits for the clock"
-    else
-        fail "autorebase does not order after time-sync.target"
-    fi
-    # Until the rebase succeeds the machine is stock FCOS: no key of ours and
-    # PasswordAuthentication no. Without this it is unreachable if the pull fails.
-    if grep -q '10-pi-core-passwords.conf' build/pi.ign; then
-        pass "ships the sshd password drop-in for the pre-rebase window"
-    else
-        fail "no sshd drop-in — a failed rebase leaves no way in"
-    fi
-    if grep -q '1280x720' build/pi.ign; then
-        pass "caps the console mode so it is legible on 1440p/4K"
-    else
-        fail "no video= karg — console renders at panel native resolution"
-    fi
+done
+if grep -q 'bootc install to-disk' scripts/build-image.sh; then
+    pass "installs with bootc (image is pi-core, not an installer)"
 else
-    fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
+    fail "build-image.sh does not use bootc install to-disk"
 fi
 
 summary "tier 0"

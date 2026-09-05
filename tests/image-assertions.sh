@@ -29,6 +29,28 @@ for dtb in bcm2837-rpi-3-b-plus.dtb bcm2711-rpi-4-b.dtb bcm2712-rpi-5-b.dtb; do
     if [[ -e "/usr/lib/modules/$KVER/dtb/broadcom/$dtb" ]]; then pass "$dtb"; else fail "$dtb missing from kernel $KVER"; fi
 done
 
+head_ "device trees are pruned to Broadcom"
+# 2386 DTBs at ~80 MB per deployment does not fit twice in a 384 MB /boot, and
+# bootc install offers no way to make that partition bigger. A real Pi failed
+# to stage an update on exactly this.
+DTBDIR="/usr/lib/modules/$KVER/dtb"
+if [[ -d "$DTBDIR" ]]; then
+    OTHER=$(find "$DTBDIR" -mindepth 1 -maxdepth 1 ! -name broadcom | wc -l)
+    if [[ "$OTHER" -eq 0 ]]; then
+        pass "only broadcom/ remains"
+    else
+        fail "$OTHER non-Broadcom entries left in $DTBDIR"
+    fi
+    DTBMB=$(du -sm "$DTBDIR" | cut -f1)
+    if [[ "$DTBMB" -lt 15 ]]; then
+        pass "device trees are ${DTBMB} MB (two deployments fit in /boot)"
+    else
+        fail "device trees are ${DTBMB} MB — /boot holds two deployments of this plus a 88 MB initramfs"
+    fi
+else
+    fail "no dtb directory under /usr/lib/modules/$KVER"
+fi
+
 head_ "bootc hygiene"
 BOOTCONTENT=$(find /boot -mindepth 1 -maxdepth 1 -printf '%f ' 2>/dev/null)
 if [[ -z "$BOOTCONTENT" ]]; then pass "/boot is empty"; else fail "/boot is not empty: $BOOTCONTENT"; fi
@@ -40,6 +62,34 @@ check "sshd is enabled" test -L /etc/systemd/system/multi-user.target.wants/sshd
 
 head_ "expected runtime"
 for b in bootc rpm-ostree docker podman tailscale; do
+    check "$b present" command -v "$b"
+done
+
+head_ "the core user (Ignition used to create this; now the image must)"
+if getent passwd core >/dev/null 2>&1; then
+    pass "core exists"
+    UID_=$(id -u core)
+    if [[ "$UID_" == "1000" ]]; then pass "uid 1000"; else fail "uid is $UID_"; fi
+    for g in wheel sudo docker adm systemd-journal; do
+        if id -nG core | tr ' ' '\n' | grep -qx "$g"; then pass "in group $g"; else fail "not in group $g"; fi
+    done
+    HOME_=$(getent passwd core | cut -d: -f6)
+    if [[ "$HOME_" == "/var/home/core" ]]; then pass "home is /var/home/core"; else fail "home is $HOME_"; fi
+    # An empty or ! field means no password login at all, which for a published
+    # image with no SSH key would mean nothing could log in.
+    PW=$(getent shadow core 2>/dev/null | cut -d: -f2)
+    if [[ "$PW" == \$* ]]; then pass "has a password hash"; else fail "password field is '${PW:-empty}' — nothing could log in"; fi
+else
+    fail "no core user — a pre-rebased image has no Ignition to create one"
+fi
+# /var is not part of a bootc image, so the home directory has to come from
+# tmpfiles at boot instead of useradd at build time.
+check "tmpfiles creates the home directory" grep -q '/var/home/core' /usr/lib/tmpfiles.d/pi-core.conf
+
+head_ "root growth (Ignition's initramfs used to do this)"
+check "pi-core-growfs is executable" test -x /usr/bin/pi-core-growfs
+check "growfs unit is enabled" test -L /etc/systemd/system/multi-user.target.wants/pi-core-growfs.service
+for b in growpart xfs_growfs; do
     check "$b present" command -v "$b"
 done
 

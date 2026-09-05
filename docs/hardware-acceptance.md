@@ -43,9 +43,9 @@ of the following or you will be debugging blind:
    monitor and keyboard.
 
 2. **Keep a monitor attached from power-on.** Note the kernel only logs to HDMI
-   from the second boot (see `console=tty0` in `ignition/pi.bu.in`), so on the
-   very first boot expect output to stop after GRUB. That is expected, not a
-   failure.
+   the console is capped at 720p and `console=tty0` is set by
+   `scripts/build-image.sh` as install-time kargs, so an attached monitor
+   should stay alive all the way through.
 
 ### What you cannot see without serial
 
@@ -67,7 +67,7 @@ console would have shown:
 ```bash
 sudo mount /dev/sdX4 /mnt        # the root partition
 sudo journalctl -D /mnt/ostree/deploy/*/var/log/journal -b -1 --no-pager | tail -100
-sudo ls /mnt/ostree/deploy/*/var/lib/       # did Ignition get that far?
+sudo ls /mnt/ostree/deploy/*/var/lib/       # did the deployment land?
 ```
 
 Check the partition number with `lsblk -f`; the root filesystem is labelled
@@ -116,35 +116,36 @@ these as live questions rather than assumptions:
 
 ## B. First boot and login
 
-- [ ] **B1** Ignition ran without error —
-      `journalctl -b 0 -u ignition-files.service -u ignition-fetch.service`
-      shows no failures.
+- [ ] **B1** The machine reaches a login prompt without an install step. There
+      is no rebase and no second reboot: `bootc status` should already name
+      `ghcr.io/<owner>/pi-core:stable`.
 - [ ] **B2** Logging in at the console as `core` / `core` works and gives a
       shell.
 - [ ] **B3** `systemctl is-enabled zincati.service` reports `masked`.
-- [ ] **B4** `avahi-daemon` is running and `pi-core.local` resolves from another
-      machine on the same network. Record whether it needed the DHCP address
-      instead — mDNS is best-effort and this is the check most likely to depend
-      on the network rather than the image.
-- [ ] **B5** The machine accepts SSH with the password set at B2. **This is the
-      handover point** — from here on the checks are scripted.
+- [ ] **B4** The root filesystem filled the card — `df -h /sysroot` should show
+      the card's size, not the image's. If not:
+      `journalctl -u pi-core-growfs.service`.
+- [ ] **B5** `avahi-daemon` is running and `pi-core.local` resolves from
+      another machine on the same network. Record whether it needed the DHCP
+      address instead — mDNS is best-effort and depends on the network.
+- [ ] **B6** The machine accepts SSH as `core`. **This is the handover point** —
+      from here on the checks are scripted.
 
-## C. Autorebase
+## C. Updating
 
-This is the step with the longest silent stretch — it pulls a multi-gigabyte
-image. Do not intervene early; watch the unit rather than the screen.
+The first `bootc upgrade` stages a second deployment alongside the running one,
+and `/boot` is 384 MB with no way to enlarge it. A Pi failed here once, before
+the device trees were pruned to Broadcom.
 
-- [ ] **C1** `journalctl -u pi-core-autorebase.service` shows the rebase
-      starting.
-- [ ] **C2** The machine reboots on its own and comes back up.
-- [ ] **C3** `/etc/pi-core-autorebase/done` exists and the unit is now disabled
-      (it must not run on every boot).
-
-Record: wall-clock time for the pull, and the link speed if known.
+- [ ] **C1** `sudo bootc upgrade` completes without "No space left on device".
+- [ ] **C2** `df -h /boot` after staging — record the figure; two deployments
+      should sit near 210 MB, not 350 MB.
+- [ ] **C3** The machine reboots into the new deployment, and
+      `sudo bootc rollback` returns to the previous one.
 
 # Part 2 — automated, over SSH
 
-Once **B5** passes, stop hand-checking and run:
+Once **B6** passes, stop hand-checking and run:
 
 ```bash
 just test-hardware <address>        # or user@host
@@ -225,6 +226,6 @@ person can compare against it.
 | A2 | `rpi-u-boot.bin` absent or misnamed — `config.txt` must say `kernel=rpi-u-boot.bin` |
 | A3 | GRUB/BLS missing — the FCOS install itself did not complete |
 | A4–A5 | Kernel or initramfs problem; capture the full serial log |
-| B | Ignition rejected the config — usually a malformed SSH key |
+| B | The deployment did not land; check the console and `bootc status` |
 | C | Network, or the image is not anonymously pullable (`just test-supply-chain`) |
 | F3 | Bootloader state is not surviving the rollback — stop and investigate before deploying anything |

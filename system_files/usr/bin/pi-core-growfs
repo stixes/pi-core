@@ -1,0 +1,45 @@
+#!/bin/bash
+# Grow the root partition and filesystem to fill the card. Runs once.
+#
+# On the old installer image this came free: Fedora CoreOS grows the root in
+# its initramfs, but only on an Ignition firstboot. A pre-rebased image has no
+# Ignition, so nothing would ever grow a 2.3 GB root onto a 32 GB card.
+#
+# growpart also rewrites the GPT backup header to the end of the device. Any
+# disk image written to a larger card leaves that header stranded mid-disk,
+# which is legal-but-wrong and upsets partition tools later.
+set -euo pipefail
+
+MARKER=/var/lib/pi-core/growfs.done
+[[ -e "${MARKER}" ]] && exit 0
+
+# /sysroot is the real root on an ostree system; / is a composefs mount and
+# findmnt reports it as "composefs", not a block device.
+SRC="$(findmnt -no SOURCE /sysroot 2>/dev/null || true)"
+[[ "${SRC}" == /dev/* ]] || SRC="$(findmnt -no SOURCE / 2>/dev/null || true)"
+if [[ "${SRC}" != /dev/* ]]; then
+    echo "pi-core-growfs: root is not a block device (${SRC:-unknown}); nothing to do" >&2
+    exit 0
+fi
+
+PART="$(basename "${SRC}")"
+PARENT="$(lsblk -no PKNAME "${SRC}" 2>/dev/null | head -1)"
+NUM="$(cat "/sys/class/block/${PART}/partition" 2>/dev/null || true)"
+if [[ -z "${PARENT}" || -z "${NUM}" ]]; then
+    echo "pi-core-growfs: cannot resolve ${SRC} to a disk + partition number" >&2
+    exit 0
+fi
+
+# growpart exits 1 and prints NOCHANGE when the partition already fills the
+# disk, which is a success for our purposes.
+if growpart "/dev/${PARENT}" "${NUM}"; then
+    echo "pi-core-growfs: grew /dev/${PARENT} partition ${NUM}"
+else
+    echo "pi-core-growfs: partition already at full size"
+fi
+
+udevadm settle || true
+xfs_growfs /sysroot 2>/dev/null || xfs_growfs / || true
+
+mkdir -p "$(dirname "${MARKER}")"
+touch "${MARKER}"

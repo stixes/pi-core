@@ -1,37 +1,28 @@
-# pi-core — installer image for Raspberry Pi
+# pi-core — Raspberry Pi image
 
-**This is an installer, not pi-core itself.** It is stock Fedora CoreOS
-(aarch64) with the Raspberry Pi firmware and U-Boot on its EFI partition, plus
-a config that installs pi-core on first boot: it pulls the pi-core container
-(~2.5 GB), rebases onto it, and reboots. After that it is an ordinary bootc
-host and nothing is downloaded again until you update.
+Fedora CoreOS (aarch64) with the Raspberry Pi firmware and U-Boot on its EFI
+partition, deployed with `bootc install`. **This is pi-core itself, not an
+installer for it**: flash it, boot once, log in. Nothing is downloaded and no
+network is needed to reach a usable machine.
 
-Two consequences worth knowing before you start:
-
-- **First boot needs a working network**, and takes as long as that download
-  takes. The Pi looks idle throughout.
-- **Until the install finishes, the machine is plain Fedora CoreOS.** Log in
-  by IP address, not `pi-core.local` — the mDNS responder is part of pi-core
-  and is not there yet.
+The root filesystem grows to fill the card on that first boot. From then on it
+is an ordinary bootc host — `bootc upgrade`, atomic, with rollback.
 
 **Pi 5 and Pi 4.** Pi 3 and Zero 2 W are excluded on RAM, not enablement.
 
 ## Flash it
 
-Download `pi-core-installer-*.img.xz`, then write it to an SD card with Raspberry Pi
+Download `pi-core-*.img.xz`, then write it to an SD card with Raspberry Pi
 Imager (choose "Use custom"), balenaEtcher, Rufus in DD/raw mode, or:
 
 ```bash
-xzcat pi-core-installer-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-Move the card to the Pi and power on. Expect 20–30 seconds of blank screen,
-then two reboots while it rebases. The root filesystem grows to fill the card.
+Move the card to the Pi and power on. Expect 20–30 seconds of blank screen
+while the firmware and U-Boot run, then GRUB, then pi-core. One boot.
 
 ## First login
-
-Wait for the two reboots first — the second one is the machine coming up as
-pi-core.
 
 ```
 user: core
@@ -44,12 +35,9 @@ legitimate choice; read the section below before making it.
 Log in over SSH once the Pi has an address:
 
 ```bash
-ssh core@<address>            # from your DHCP leases
-ssh core@pi-core.local        # mDNS — only after the first-boot rebase finishes
+ssh core@pi-core.local        # mDNS
+ssh core@<address>            # or the address from your DHCP leases
 ```
-
-`.local` depends on a responder that arrives with the pi-core image, so it does
-not answer until the first-boot rebase has completed. The address always works.
 
 A monitor and USB keyboard work too, if you would rather not wait for the
 network.
@@ -88,11 +76,11 @@ sha256sum -c SHA256SUMS
 
 **This image has never been booted on a real Raspberry Pi.**
 
-It builds, it lints clean, it is signed, and an automated suite checks what the
-image *contains*. None of that exercises the boot chain — EEPROM → U-Boot →
-GRUB → ostree — which is the part most likely to fail, and no automated test
-can reach it. The install steps are derived from Fedora CoreOS's Raspberry Pi 4
-documentation, not from a Pi that booted.
+A Pi 4 has booted this boot chain — EEPROM → U-Boot → GRUB → ostree — from an
+earlier build, so that part is not guesswork. What has *not* been booted is an
+image deployed this way, with `bootc install` rather than a first-boot rebase.
+Everything else is checked by an automated suite against the image's contents,
+which is not the same as a machine that came up.
 
 So: expect to debug, keep a serial adapter or a monitor handy, and do not put
 this on anything you care about yet. If it fails, please open an issue with the

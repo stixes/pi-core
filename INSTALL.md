@@ -1,14 +1,11 @@
 # Installing pi-core on a Raspberry Pi
 
-Download the installer image, flash it, boot it, log in. That is the whole
-install, and it is the only one supported: there is no build-time configuration
-and nothing to edit on the card. Everything about a machine is set after you
-log into it.
+Download the image, flash it, boot it, log in. That is the whole install, and
+it is the only one supported: there is no build-time configuration and nothing
+to edit on the card. Everything about a machine is set after you log into it.
 
-The image is an *installer*: it is stock Fedora CoreOS carrying a config that
-pulls the pi-core container on first boot and reboots into it. Until that
-finishes, the running system is plain Fedora CoreOS — which matters when you
-are trying to work out whether a first boot went well.
+The image *is* pi-core — it is not an installer for it. One boot, nothing
+downloaded, no network needed to get a usable machine.
 
 ## Supported models
 
@@ -46,12 +43,12 @@ card will wear out faster than you would like.
 
 ## 1. Flash the image
 
-Download `pi-core-installer-*.img.xz` from the [releases page](../../releases)
-and write it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
+Download `pi-core-*.img.xz` from the [releases page](../../releases) and write
+it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
 DD/raw mode. Or:
 
 ```bash
-xzcat pi-core-installer-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 Check the download first if you like — `cosign.pub` is in this repository:
@@ -63,20 +60,13 @@ sha256sum -c SHA256SUMS
 
 ## 2. First boot
 
-Put the card in the Pi and power on. Then wait — the Pi does a lot here:
+Put the card in the Pi and power on.
 
-1. **20–30 seconds of nothing.** No output at all. This is normal.
-2. U-Boot starts, GRUB appears, Fedora CoreOS boots.
-3. Ignition applies the built-in config.
-4. `pi-core-autorebase.service` pulls `ghcr.io/<owner>/pi-core:stable` and
-   reboots. **This downloads a multi-gigabyte image** — on a slow card and a
-   slow link it can take a long while. The Pi looks idle; it is not.
-5. The Pi comes back up running pi-core.
+Expect **20–30 seconds of nothing** — no output at all — while the firmware and
+U-Boot run. Then GRUB, then Fedora CoreOS boots straight into pi-core. One
+boot; there is no install step and nothing is downloaded.
 
-The whole sequence is two reboots. Do not pull the power because it seems stuck;
-watch the serial console if you want to see what it is actually doing.
-
-The root filesystem grows to fill the card on that first boot.
+The root filesystem grows to fill the card the first time it comes up.
 
 ## 3. Log in
 
@@ -94,15 +84,10 @@ At the console with a monitor and keyboard, or over SSH once it has an address:
 ssh core@pi-core.local
 ```
 
-**`.local` only works once the rebase in step 2 has finished.** The mDNS
-responder is part of the pi-core image, so until that pull completes there is
-nothing answering. Password SSH works from the first boot either way, so
-`ssh core@<address>` with the DHCP-lease address is the reliable route while
-you wait.
-
-mDNS is best-effort even afterwards: some networks block multicast, and a few
-consumer APs drop it between wireless and wired clients. Nothing else depends
-on it.
+mDNS is best-effort: some networks block multicast, and a few consumer APs drop
+it between wireless and wired clients. If `.local` does not answer, get the
+address from your router's DHCP lease table and `ssh core@<address>` — nothing
+else depends on it.
 
 ## 4. Recommended next steps
 
@@ -170,28 +155,12 @@ console through to the kernel without extra configuration.
 |---|---|
 | No output at all, ever | Most likely an old EEPROM — see below |
 | Rainbow screen, then nothing | Firmware loaded but `rpi-u-boot.bin` is missing or unreadable |
-| Boots FCOS but no login | Ignition failed — check the serial console |
-| Login works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
-| Rebase failed on an invalid certificate | The clock. See below |
+| Boots, but `core` is rejected | Check the serial console; the account is baked into the image, so this should not happen |
+| Booted, but the disk is still image-sized | `journalctl -u pi-core-growfs.service` |
 | `core` / `core` rejected | You already changed it — try the console, or your own password |
 | `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
 | Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§6) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
-
-### Rebase fails with a certificate error
-
-The Pi has no battery-backed clock, so it boots with whatever date the
-filesystem carried and TLS to the registry fails "certificate is not yet
-valid". The image orders the rebase after `time-sync.target` and enables
-`chrony-wait` so this should not happen, but if it does, step the clock and
-retry by hand:
-
-```bash
-sudo chronyc makestep
-sudo rpm-ostree rebase --bypass-driver \
-    ostree-unverified-registry:ghcr.io/<owner>/pi-core:stable
-sudo systemctl reboot
-```
 
 ### No output at all: update the EEPROM
 

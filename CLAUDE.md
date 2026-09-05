@@ -14,13 +14,15 @@ Published to `ghcr.io/<owner>/pi-core:stable` (public, cosign-signed), where
 
 ## Model
 
-We never bake our customisations into a disk image. Stock FCOS is flashed to the
-card (or to a loop-mounted file by `scripts/build-image.sh`, same bytes), the Pi
-firmware goes on its ESP, and Ignition rebases the machine onto our image on
-first boot.
-After that it is an ordinary bootc host. Customisation lives in `Containerfile`
-+ `build_files/build.sh`; CI builds it on a native arm64 runner and the device
-pulls it.
+`scripts/build-image.sh` runs `bootc install to-disk` to deploy the pi-core
+container onto a disk image, and adds the Pi firmware to its ESP. The published
+image **is** pi-core, not an installer for it: one boot, nothing downloaded, no
+network needed to reach a usable machine. After that it is an ordinary bootc
+host. Customisation lives in `Containerfile` + `build_files/build.sh`; CI builds
+it on a native arm64 runner and the device pulls it for updates.
+
+There is no Ignition config. It was deleted with the installer model — see
+`docs/design-decisions.md` for what that cost and why it was still worth it.
 
 Boot chain: `EEPROM -> config.txt (kernel=rpi-u-boot.bin) -> U-Boot -> its EFI
 layer -> GRUB -> BLS -> ostree deployment`.
@@ -61,15 +63,14 @@ just ci                     # push the branch; CI builds + tests on arm64
 just test-supply-chain      # tier 1.5 — the published image
 just test-hardware <host>   # tier 3 — a booted Pi, over SSH, read-only
 just inspect                # sanity-check the built image
-just ignition               # render build/pi.ign
 just image                  # build the published .img (+ .xz); needs sudo
 ```
 
 ## Tests
 
 `just test` is the fast gate and the one to run while editing: `tests/static.sh`
-only (shellcheck, actionlint, ignition validation, env-file format and three-way
-parse agreement), about 5 seconds, no image needed.
+only (shellcheck, actionlint, env-file format and three-way parse agreement,
+and that build-image.sh still passes the console kargs), about 5 seconds, no image needed.
 
 `tests/image.sh` (architecture, firmware-stash completeness, Pi 3/4/5 DTBs,
 empty `/boot`, unit enablement, mDNS, the password drop-in) needs a built image.
@@ -123,17 +124,18 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 - **`/boot` must be empty in the built image**, or `bootc container lint`
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
-- **There is one install path and one Ignition config.** Download the published
-  image, flash, boot, log in as `core`, configure in place. No build-time
-  settings, nothing to edit on the card, no per-device state in this repo. Both
-  earlier mechanisms — `pi-core.conf` + `pi-core-provision`, and per-device
-  Ignition rendering with someone's SSH key — were deleted, not deprecated. Do
-  not reintroduce pre-boot configuration; an image handed to a stranger cannot
-  depend on it, and `hostnamectl`/`authorized_keys`/`timedatectl` already work
-  after login.
-- **The Ignition template is model-agnostic** — nothing in `ignition/pi.bu.in`
-  is Pi 4 or Pi 5 specific, and it should stay that way. If a model needs its
-  own config, that is a second template, not a conditional.
+- **There is one install path.** Download the published image, flash, boot, log
+  in as `core`, configure in place. No build-time settings, nothing to edit on
+  the card, no per-device state in this repo. Three mechanisms that once did
+  this — `pi-core.conf` + `pi-core-provision`, per-device Ignition rendering,
+  and the first-boot rebase — were deleted, not deprecated. Do not reintroduce
+  pre-boot configuration; an image handed to a stranger cannot depend on it.
+- **What Ignition used to provide, the image must.** The `core` user comes from
+  `sysusers.d` (a bare `/etc/passwd` entry fails `bootc container lint`) and
+  root growth from `pi-core-growfs.service`, because Fedora CoreOS only grows
+  the root on an Ignition firstboot. Both are asserted in tier 1.
+- **The image is model-agnostic** — nothing in it is Pi 4 or Pi 5 specific, and
+  it should stay that way.
 - **The published image ships `core` / `core` on purpose.** SSH password auth is
   on (`10-pi-core-passwords.conf`, which must keep sorting before FCOS's
   `40-disable-passwords.conf` — sshd takes the *first* value for a keyword) and
