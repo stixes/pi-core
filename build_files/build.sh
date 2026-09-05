@@ -134,15 +134,20 @@ done
 # exists, so boot.mount hangs on the device timeout, local-fs.target fails and
 # most of userspace follows it down. Seen on a Pi 4.
 #
-# The generator exits early if fstab already covers /boot (its line 16), so a
-# self-bind is the documented way out: it satisfies the check and mounts a
-# directory over itself, which is a no-op.
+# The generator exits early if fstab already covers /boot (its line 16), so an
+# fstab entry is the documented way out. It has to be a real one: the image's
+# own /boot is empty -- bootc container lint requires that -- and the running
+# root is a composefs built from the image, so the deployment's /boot is empty
+# too. The kernels and BLS entries live in the physical root at /sysroot/boot,
+# which on Fedora CoreOS is what the boot partition mount exposes. With no boot
+# partition, a bind is what exposes it.
 cat > /etc/fstab <<'FSTABEOF'
-# /boot is inside the root filesystem: bootc install to-disk creates no
-# separate boot partition. This entry exists only so
-# coreos-boot-mount-generator does not invent a mount for LABEL=boot, which
-# does not exist here. Removing it hangs the boot.
-/boot /boot none bind 0 0
+# bootc install to-disk creates no separate boot partition, so /boot is a
+# directory in the physical root and the deployment cannot see it on its own.
+# This bind exposes it, and doubles as the fstab entry that stops
+# coreos-boot-mount-generator inventing a mount for a LABEL=boot that does not
+# exist here. Removing it hangs the boot and leaves /boot empty.
+/sysroot/boot /boot none bind 0 0
 FSTABEOF
 
 ### 7. Enable units

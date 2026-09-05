@@ -107,6 +107,14 @@ if [[ -f /etc/fstab ]] && grep -qE '^[^#]*[[:space:]]/boot[[:space:]]' /etc/fsta
 else
     fail "no /boot entry in /etc/fstab — coreos-boot-mount-generator will hang the boot"
 fi
+# It must expose the real thing. The image's own /boot is empty by design, so
+# binding /boot onto itself stops the hang and still leaves /boot empty, with
+# nowhere for bootc to write BLS entries.
+if grep -qE '^/sysroot/boot[[:space:]]+/boot[[:space:]]+none[[:space:]]+bind' /etc/fstab; then
+    pass "it binds /sysroot/boot, where the kernels actually are"
+else
+    fail "the /boot entry does not bind /sysroot/boot: $(grep -E '/boot' /etc/fstab | grep -v '^#')"
+fi
 
 head_ "root growth (Ignition's initramfs used to do this)"
 check "pi-core-growfs is executable" test -x /usr/bin/pi-core-growfs
