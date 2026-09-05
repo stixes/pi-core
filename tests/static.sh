@@ -77,6 +77,31 @@ if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
     else
         fail "no password hash — nothing could log in"
     fi
+    # The Pi has no RTC. Without chrony-wait enabled, time-sync.target is
+    # reached instantly and the autorebase pulls with a bogus clock, which
+    # fails the registry's TLS cert. This stranded the first real hardware boot.
+    if grep -q 'chrony-wait.service' build/pi.ign; then
+        pass "enables chrony-wait (makes time-sync.target mean something)"
+    else
+        fail "chrony-wait not enabled — autorebase will pull with an unset clock"
+    fi
+    if grep -q 'time-sync.target' build/pi.ign; then
+        pass "autorebase waits for the clock"
+    else
+        fail "autorebase does not order after time-sync.target"
+    fi
+    # Until the rebase succeeds the machine is stock FCOS: no key of ours and
+    # PasswordAuthentication no. Without this it is unreachable if the pull fails.
+    if grep -q '10-pi-core-passwords.conf' build/pi.ign; then
+        pass "ships the sshd password drop-in for the pre-rebase window"
+    else
+        fail "no sshd drop-in — a failed rebase leaves no way in"
+    fi
+    if grep -q '1280x720' build/pi.ign; then
+        pass "caps the console mode so it is legible on 1440p/4K"
+    else
+        fail "no video= karg — console renders at panel native resolution"
+    fi
 else
     fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
 fi

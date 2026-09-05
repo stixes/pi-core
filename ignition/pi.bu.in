@@ -32,6 +32,17 @@ storage:
         inline: |
           Provisioned by pi-core ignition for @IMAGE@
 
+    # Also shipped in the image, but the image is not what runs first. Until
+    # the rebase succeeds this is stock Fedora CoreOS, which sets
+    # PasswordAuthentication no and has no key of ours -- so a machine whose
+    # rebase fails is unreachable by every documented route. Sorted 10- because
+    # sshd takes the FIRST value for a keyword and FCOS's own drop-in is 40-.
+    - path: /etc/ssh/sshd_config.d/10-pi-core-passwords.conf
+      mode: 0600
+      contents:
+        inline: |
+          PasswordAuthentication yes
+
   directories:
     - path: /etc/pi-core-autorebase
       mode: 0755
@@ -44,6 +55,16 @@ storage:
 kernel_arguments:
   should_exist:
     - console=tty0
+    # Cap the console at 720p. config.txt's framebuffer_width/height cannot do
+    # this: Fedora sets disable_fw_kms_setup=1 and loads vc4-kms-v3d, so the
+    # kernel takes the mode from EDID and renders the console at the panel's
+    # native resolution — 320 columns of 8x16 text on a 1440p monitor, 480 on a
+    # 4K one. 720p halves that to 160 columns, which is still a normal terminal
+    # width, and it scales by exactly 2 into 1440p and 3 into 4K. The kernel has
+    # only 8x8/8x16 fonts compiled in, so resolution is the only lever here.
+    # Both HDMI ports, since either may be the one plugged in.
+    - video=HDMI-A-1:1280x720@60
+    - video=HDMI-A-2:1280x720@60
 
 systemd:
   units:
@@ -54,6 +75,14 @@ systemd:
       mask: true
 
     - name: rpm-ostreed-automatic.timer
+      enabled: true
+
+    # The Pi has no battery-backed clock, so it boots believing whatever date
+    # the filesystem carried and every TLS handshake fails "certificate is not
+    # yet valid" until NTP corrects it. chrony-wait is what makes
+    # time-sync.target mean anything; it ships disabled, so without this the
+    # target is reached instantly and orders nothing.
+    - name: chrony-wait.service
       enabled: true
 
     # First boot: rebase onto our uCore derivative, then reboot into it.
@@ -69,8 +98,8 @@ systemd:
         [Unit]
         Description=pi-core autorebase to @IMAGE@ and reboot
         ConditionPathExists=!/etc/pi-core-autorebase/done
-        After=network-online.target
-        Wants=network-online.target
+        After=network-online.target time-sync.target
+        Wants=network-online.target time-sync.target
         [Service]
         Type=oneshot
         RemainAfterExit=yes

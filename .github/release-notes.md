@@ -31,8 +31,12 @@ legitimate choice; read the section below before making it.
 Log in over SSH once the Pi has an address:
 
 ```bash
-ssh core@pi-core.local        # mDNS; or use the address from your DHCP leases
+ssh core@<address>            # from your DHCP leases
+ssh core@pi-core.local        # mDNS — only after the first-boot rebase finishes
 ```
+
+`.local` depends on a responder that arrives with the pi-core image, so it does
+not answer until the first-boot rebase has completed. The address always works.
 
 A monitor and USB keyboard work too, if you would rather not wait for the
 network.

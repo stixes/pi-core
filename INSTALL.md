@@ -88,10 +88,15 @@ At the console with a monitor and keyboard, or over SSH once it has an address:
 ssh core@pi-core.local
 ```
 
-mDNS is best-effort: some networks block multicast, and a few consumer APs drop
-it between wireless and wired clients. If `.local` does not answer, get the
-address from your router's DHCP lease table and `ssh core@<address>` — nothing
-else depends on mDNS.
+**`.local` only works once the rebase in step 2 has finished.** The mDNS
+responder is part of the pi-core image, so until that pull completes there is
+nothing answering. Password SSH works from the first boot either way, so
+`ssh core@<address>` with the DHCP-lease address is the reliable route while
+you wait.
+
+mDNS is best-effort even afterwards: some networks block multicast, and a few
+consumer APs drop it between wireless and wired clients. Nothing else depends
+on it.
 
 ## 4. Recommended next steps
 
@@ -161,10 +166,26 @@ console through to the kernel without extra configuration.
 | Rainbow screen, then nothing | Firmware loaded but `rpi-u-boot.bin` is missing or unreadable |
 | Boots FCOS but no login | Ignition failed — check the serial console |
 | Login works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
+| Rebase failed on an invalid certificate | The clock. See below |
 | `core` / `core` rejected | You already changed it — try the console, or your own password |
 | `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
 | Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§6) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
+
+### Rebase fails with a certificate error
+
+The Pi has no battery-backed clock, so it boots with whatever date the
+filesystem carried and TLS to the registry fails "certificate is not yet
+valid". The image orders the rebase after `time-sync.target` and enables
+`chrony-wait` so this should not happen, but if it does, step the clock and
+retry by hand:
+
+```bash
+sudo chronyc makestep
+sudo rpm-ostree rebase --bypass-driver \
+    ostree-unverified-registry:ghcr.io/<owner>/pi-core:stable
+sudo systemctl reboot
+```
 
 ### No output at all: update the EEPROM
 
