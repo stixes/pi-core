@@ -88,8 +88,23 @@ sudo podman run --rm --privileged --pid=host \
         --karg video=HDMI-A-2:1280x720@60 \
         "${LOOP}"
 
-log "fetching Raspberry Pi firmware"
-./scripts/fetch-firmware.sh build/rpi-firmware
+# Take the firmware from the image, not from a fresh download.
+#
+# fetch-firmware.sh pulls Fedora's stock RPMs, but build.sh customises the
+# stashed copy (config.txt) inside the image. Downloading again put stock files
+# on the ESP while the image carried modified ones: the config.txt changes
+# never shipped, and `pi-core-firmware check` reported drift on every fresh
+# install by construction. Copying the stash makes the ESP and the image agree,
+# which is the whole premise of that check.
+#
+# `podman cp` reads the container filesystem without executing anything, so
+# this works cross-arch with no emulation.
+log "extracting the Pi firmware from ${IMAGE}"
+rm -rf build/rpi-firmware
+FWCID="$(sudo podman create --arch arm64 "${IMAGE}" /bin/true)"
+sudo podman cp "${FWCID}:/usr/lib/pi-core/firmware" build/rpi-firmware
+sudo podman rm "${FWCID}" >/dev/null
+[[ -f build/rpi-firmware/rpi-u-boot.bin ]] || die "no rpi-u-boot.bin in the image's firmware stash"
 
 # Re-attach so the kernel reads the partition table bootc just wrote:
 # --partscan only scans at attach time, and at attach time this file was empty.

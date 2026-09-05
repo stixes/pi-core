@@ -1,0 +1,18 @@
+# Unit enablement for a bootc image has to be a preset, not `systemctl enable`.
+#
+# `systemctl enable` writes a symlink under /etc, and /etc is configuration: the
+# deployment's /etc is generated from presets at install time, so a build-time
+# enable lands in the image and is then dropped. Seen on a Pi 4, where
+# pi-core-growfs and pi-core-firmware-check were both present in /usr/etc and
+# absent from the running /etc, leaving the root filesystem un-grown.
+#
+# Sorts before 20-fcos.preset so the zincati line below wins: first match wins.
+enable pi-core-firmware-check.service
+enable pi-core-hostname.service
+enable pi-core-growfs.service
+enable rpm-ostreed-automatic.timer
+enable avahi-daemon.service
+
+# Zincati fights a bootc image and retries forever. It is masked outright in
+# build.sh; this is belt and braces for the enablement path.
+disable zincati.service

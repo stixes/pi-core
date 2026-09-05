@@ -148,12 +148,27 @@ cat > /etc/fstab <<'FSTABEOF'
 # coreos-boot-mount-generator inventing a mount for a LABEL=boot that does not
 # exist here. Removing it hangs the boot and leaves /boot empty.
 /sysroot/boot /boot none bind 0 0
+
+# /var likewise. It is the stateful half of an ostree system and must be
+# writable, but the deployment root is composefs and immutable, so an unmounted
+# /var means every write lands on a read-only filesystem: tmpfiles cannot create
+# /var/home, NetworkManager cannot store state, and the machine comes up with no
+# network. The real thing is in the stateroot; Fedora CoreOS binds it during an
+# Ignition firstboot, which is exactly what this image does not have.
+/sysroot/ostree/deploy/fedora-coreos/var /var none bind 0 0
 FSTABEOF
 
 ### 7. Enable units
-systemctl enable pi-core-firmware-check.service
-systemctl enable avahi-daemon.service
-systemctl enable pi-core-growfs.service
+# Enablement lives in /usr/lib/systemd/system-preset/10-pi-core.preset, not
+# here: `systemctl enable` writes to /etc, and the deployment's /etc is
+# regenerated from presets at install time, so it would be silently dropped.
+#
+# Zincati is masked in /usr rather than with `systemctl mask`, for the same
+# reason -- mask writes /etc/systemd/system/zincati.service -> /dev/null and
+# that would go the same way. A unit symlinked to /dev/null is masked wherever
+# the symlink lives. It fights a bootc image and retries forever;
+# rpm-ostreed-automatic stages updates instead.
+ln -sf /dev/null /usr/lib/systemd/system/zincati.service
 
 ### 8. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo

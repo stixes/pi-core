@@ -69,7 +69,6 @@ if [[ -z "$BOOTCONTENT" ]]; then pass "/boot is empty"; else fail "/boot is not 
 
 head_ "our additions"
 check "pi-core-firmware is executable" test -x /usr/bin/pi-core-firmware
-check "firmware-check unit is enabled" test -L /etc/systemd/system/multi-user.target.wants/pi-core-firmware-check.service
 check "sshd is enabled" test -L /etc/systemd/system/multi-user.target.wants/sshd.service
 
 head_ "expected runtime"
@@ -116,9 +115,62 @@ else
     fail "the /boot entry does not bind /sysroot/boot: $(grep -E '/boot' /etc/fstab | grep -v '^#')"
 fi
 
+# An unmounted /var leaves the composefs one in place, which is read-only.
+if grep -qE '^/sysroot/ostree/deploy/[^/]+/var[[:space:]]+/var[[:space:]]+none[[:space:]]+bind' /etc/fstab; then
+    pass "fstab binds the stateroot's /var"
+else
+    fail "no /var bind in /etc/fstab — /var would be the read-only composefs copy"
+fi
+# The stateroot name is baked into that path, so catch it changing under us.
+STATEROOT=$(bootc install print-configuration 2>/dev/null | grep -oE '"stateroot":"[^"]+"' | cut -d'"' -f4)
+if [[ -z "$STATEROOT" ]]; then
+    skip "could not read the stateroot from bootc"
+elif grep -qE "^/sysroot/ostree/deploy/${STATEROOT}/var[[:space:]]" /etc/fstab; then
+    pass "the bind path matches bootc's stateroot ($STATEROOT)"
+else
+    fail "fstab does not match bootc's stateroot '$STATEROOT'"
+fi
+
+head_ "unit enablement is a preset, not a /etc symlink"
+# `systemctl enable` writes /etc, and the deployment's /etc is regenerated from
+# presets at install: a build-time enable is silently dropped. A Pi 4 booted
+# with pi-core-growfs disabled and an un-grown root because of exactly this.
+PRESET=/usr/lib/systemd/system-preset/10-pi-core.preset
+check "preset file present" test -f "$PRESET"
+for u in pi-core-firmware-check.service pi-core-growfs.service pi-core-hostname.service; do
+    if grep -qE "^enable[[:space:]]+${u}\$" "$PRESET" 2>/dev/null; then
+        pass "preset enables $u"
+    else
+        fail "$u is not enabled by preset — it will not be enabled on the installed system"
+    fi
+done
+# Masking via `systemctl mask` writes /etc too, so it must be masked in /usr.
+if [[ "$(readlink -f /usr/lib/systemd/system/zincati.service 2>/dev/null)" == /dev/null ]]; then
+    pass "zincati masked in /usr (survives the /etc regeneration)"
+else
+    fail "zincati is not masked in /usr — it retries forever against a bootc image"
+fi
+
+head_ "hostname (Ignition used to write /etc/hostname)"
+# The image cannot ship /etc/hostname: podman bind-mounts it during a build, so
+# it never reaches the image. Written at boot instead -- without it systemd
+# falls back to "linux", avahi publishes linux.local, and the
+# ssh core@pi-core.local in INSTALL.md does not resolve.
+HN_UNIT=/usr/lib/systemd/system/pi-core-hostname.service
+check "hostname unit present" test -f "$HN_UNIT"
+if grep -q 'ConditionPathExists=!/etc/hostname' "$HN_UNIT" 2>/dev/null; then
+    pass "defers to a hostname the owner set"
+else
+    fail "would overwrite a renamed machine"
+fi
+if grep -q '/proc/sys/kernel/hostname' "$HN_UNIT" 2>/dev/null; then
+    pass "sets the running hostname too, not just the file"
+else
+    fail "only writes the file — the first boot would still be 'linux' to avahi"
+fi
+
 head_ "root growth (Ignition's initramfs used to do this)"
 check "pi-core-growfs is executable" test -x /usr/bin/pi-core-growfs
-check "growfs unit is enabled" test -L /etc/systemd/system/multi-user.target.wants/pi-core-growfs.service
 for b in growpart xfs_growfs; do
     check "$b present" command -v "$b"
 done

@@ -39,6 +39,11 @@ do_check() {
         # config.txt is expected to be locally modified; report but don't count.
         if [[ ! -e "${mnt}/${name}" ]]; then
             echo "MISSING on ESP: ${name}"; drift=1
+        elif [[ -d "$f" ]]; then
+            # overlays/ is a directory; cmp only handles files.
+            if ! diff -qr "$f" "${mnt}/${name}" >/dev/null 2>&1; then
+                echo "DIFFERS from image: ${name}/"; drift=1
+            fi
         elif ! cmp -s "$f" "${mnt}/${name}"; then
             if [[ "${name}" == "config.txt" ]]; then
                 echo "differs (expected, locally customised): ${name}"

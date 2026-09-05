@@ -1,0 +1,21 @@
+[Unit]
+Description=Set the default pi-core hostname
+Documentation=https://github.com/stixes/pi-core
+# Only if the machine has no hostname of its own: `hostnamectl set-hostname`
+# writes this file, so a renamed machine is never reset.
+ConditionPathExists=!/etc/hostname
+After=local-fs.target
+Before=avahi-daemon.service NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The file for future boots, /proc for this one: systemd reads /etc/hostname in
+# PID1, long before this runs, so writing the file alone would leave the
+# running host called "linux" for its whole first boot -- and avahi would
+# publish linux.local, which is precisely when someone is following INSTALL.md.
+ExecStart=/usr/bin/sh -c 'echo pi-core > /etc/hostname'
+ExecStart=/usr/bin/sh -c 'echo pi-core > /proc/sys/kernel/hostname'
+
+[Install]
+WantedBy=multi-user.target
