@@ -98,12 +98,15 @@ if [[ -f /run/.toolboxenv || -f /run/.containerenv ]]; then
 fi
 
 [[ -b "${DISK}" ]]  || die "${DISK} is not a block device"
-[[ -r "${IGN}" ]]   || die "no ignition config at ${IGN} (run scripts/render-ignition.sh)"
 
-# Guard against nuking this workstation's own disk.
+# Guard against nuking this workstation's own disk. This comes before every
+# other check: if the target is this machine, that is what the user needs to be
+# told, not that some prerequisite is missing.
 if is_system_disk "${DISK}"; then
     die "${DISK} backs a filesystem of THIS machine — refusing"
 fi
+
+[[ -r "${IGN}" ]]   || die "no ignition config at ${IGN} (run scripts/render-ignition.sh)"
 
 echo
 lsblk -o NAME,SIZE,TYPE,RM,MODEL,MOUNTPOINTS "${DISK}"
