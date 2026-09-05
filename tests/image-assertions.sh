@@ -21,6 +21,18 @@ else
     fail "config.txt does not set kernel=rpi-u-boot.bin"
 fi
 
+# Deliberately diverged from Fedora's config.txt so the firmware sets up the
+# display and config.txt can constrain it. If this reverts, the U-Boot and GRUB
+# screens go back to panel-native resolution.
+if grep -qE '^disable_fw_kms_setup=1' "$FW/config.txt"; then
+    fail "disable_fw_kms_setup=1 is active again — config.txt cannot affect the display"
+else
+    pass "disable_fw_kms_setup is disabled"
+fi
+for k in framebuffer_width framebuffer_height; do
+    check "config.txt sets $k" grep -qE "^${k}=" "$FW/config.txt"
+done
+
 head_ "kernel device trees (Pi 3 / 4 / 5 coverage)"
 shopt -s nullglob
 MODDIRS=(/usr/lib/modules/*/)

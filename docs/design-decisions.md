@@ -118,9 +118,35 @@ again:
 
 The adjustment path is therefore `rpm-ostree kargs --replace=…` after login,
 which is consistent with everything else about this image being configured
-after first boot. A FAT-editable knob would mean a first-boot service reading a
-file off the ESP and rewriting kargs — the pre-boot configuration mechanism
-this project deliberately deleted.
+after first boot.
+
+### The open experiment
+
+Because config.txt is where a Pi user looks first, the image now ships with
+`disable_fw_kms_setup=1` commented out and `framebuffer_width`/`_height` set to
+1280x720, *and* keeps the `video=` kargs. The prediction above says this will
+change the U-Boot and GRUB screens and leave the kernel console alone. To find
+out which actually wins, on a booted machine:
+
+```bash
+sudo rpm-ostree kargs \
+    --delete=video=HDMI-A-1:1280x720@60 \
+    --delete=video=HDMI-A-2:1280x720@60
+sudo systemctl reboot
+```
+
+Then check `cat /sys/class/drm/*-HDMI-A-1/modes | head -1`. Still 1280x720
+means config.txt reached the kernel and the kargs can go. Panel-native means
+the prediction held and the kargs are the only lever. Worst case is a console
+that does not come up at all, if the firmware's mode and `vc4-kms-v3d`
+disagree — SSH is unaffected, and re-adding the kargs undoes it.
+
+A FAT-editable knob for *arbitrary* settings — a `dietpi.txt`-style file read
+on first boot — is a bigger idea and is deliberately not here yet. It would
+mean a first-boot service parsing a file off the ESP, which is the pre-boot
+configuration mechanism this project removed once already. Worth revisiting
+only if custom hardware turns out to be a real user problem rather than a
+hypothetical one.
 
 ## mDNS, reversing an earlier decision
 

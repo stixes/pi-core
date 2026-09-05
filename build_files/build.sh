@@ -33,6 +33,26 @@ cp -a /boot/efi/. "${FW_STASH}/"
 # Fedora's config.txt says `kernel=rpi-u-boot.bin`, so match that name.
 cp -P /usr/share/uboot/rpi_arm64/u-boot.bin "${FW_STASH}/rpi-u-boot.bin"
 
+# Let config.txt have a say in the display, which is where a Pi user expects to
+# find it. Fedora sets disable_fw_kms_setup=1, which stops the firmware setting
+# up the display and passing a mode to the kernel.
+#
+# Expect this to change the U-Boot and GRUB screens but NOT the kernel console:
+# the firmware passes its mode by appending video= to the kernel command line,
+# and GRUB builds that line itself from the BLS entry. Measured on a Pi 4,
+# /chosen/bootargs is byte-identical to /proc/cmdline and carries GRUB's
+# BOOT_IMAGE=, so GRUB is what writes it. The video= kargs stay in place for
+# that reason; see docs/design-decisions.md for how to test which one wins.
+sed -i 's/^disable_fw_kms_setup=1/#disable_fw_kms_setup=1  # pi-core: let config.txt drive the display/' \
+    "${FW_STASH}/config.txt"
+cat >> "${FW_STASH}/config.txt" <<'CFGEOF'
+
+# pi-core: keep the boot-time framebuffer readable on 1440p and 4K panels.
+# Edit these for custom hardware; they take effect from the next boot.
+framebuffer_width=1280
+framebuffer_height=720
+CFGEOF
+
 # Record what we shipped so the on-device checker can compare versions.
 rpm -q bcm283x-firmware bcm2711-firmware bcm2712-firmware bcm2835-firmware \
        bcm283x-overlays uboot-images-armv8 > "${FW_STASH}/.versions"
