@@ -98,17 +98,32 @@ log "fetching Raspberry Pi firmware"
 sudo losetup -d "${LOOP}"
 LOOP="$(sudo losetup --find --show --partscan "${TMP}")"
 [[ -b "${LOOP}" ]] || die "losetup did not give us a block device on re-attach"
-sudo udevadm settle
 sudo partprobe "${LOOP}" 2>/dev/null || true
+sudo udevadm settle
 
-ESP="$(sudo lsblk "${LOOP}" -J -o LABEL,PATH \
-       | jq -r '.blockdevices[] | .. | objects | select(.label=="EFI-SYSTEM") | .path' \
-       | head -1)"
+# Probe each partition directly rather than asking lsblk. lsblk reports LABEL
+# and FSTYPE out of udev's database, which is populated asynchronously, so it
+# can return a partition with no label simply because udev has not got to it
+# yet -- and it did exactly that here, showing p3 as ext4 while p2 came back
+# blank. `blkid -p` reads the device itself and bypasses both udev and the
+# blkid cache, so it cannot race.
+ESP=""
+for part in "${LOOP}"p*; do
+    [[ -b "${part}" ]] || continue
+    if [[ "$(sudo blkid -p -s LABEL -o value "${part}" 2>/dev/null)" == "EFI-SYSTEM" ]]; then
+        ESP="${part}"
+        break
+    fi
+done
 if [[ -z "${ESP}" ]]; then
-    echo "build-image: no EFI-SYSTEM partition on ${LOOP}. lsblk sees:" >&2
-    sudo lsblk "${LOOP}" -o NAME,LABEL,FSTYPE,SIZE >&2 || true
+    echo "build-image: no EFI-SYSTEM partition on ${LOOP}. Partitions probe as:" >&2
+    for part in "${LOOP}"p*; do
+        [[ -b "${part}" ]] || continue
+        printf '  %-16s %s\n' "${part}" "$(sudo blkid -p -o export "${part}" 2>/dev/null | tr '\n' ' ')" >&2
+    done
     die "could not find the EFI-SYSTEM partition on ${LOOP}"
 fi
+log "ESP is ${ESP}"
 
 MNT="$(mktemp -d)"
 sudo mount "${ESP}" "${MNT}"
