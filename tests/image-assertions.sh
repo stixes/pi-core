@@ -98,6 +98,16 @@ fi
 # tmpfiles at boot instead of useradd at build time.
 check "tmpfiles creates the home directory" grep -q '/var/home/core' /usr/lib/tmpfiles.d/pi-core.conf
 
+head_ "/boot is not left to coreos-boot-mount-generator"
+# Without an fstab entry the generator invents a mount for LABEL=boot, which
+# does not exist in bootc's two-partition layout: boot.mount hangs, local-fs
+# fails, and most of userspace follows. This hung a Pi 4.
+if [[ -f /etc/fstab ]] && grep -qE '^[^#]*[[:space:]]/boot[[:space:]]' /etc/fstab; then
+    pass "fstab covers /boot, so the generator stands down"
+else
+    fail "no /boot entry in /etc/fstab — coreos-boot-mount-generator will hang the boot"
+fi
+
 head_ "root growth (Ignition's initramfs used to do this)"
 check "pi-core-growfs is executable" test -x /usr/bin/pi-core-growfs
 check "growfs unit is enabled" test -L /etc/systemd/system/multi-user.target.wants/pi-core-growfs.service

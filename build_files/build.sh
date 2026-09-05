@@ -124,12 +124,33 @@ for dtbdir in /usr/lib/modules/*/dtb; do
     echo "::: pruned $(basename "$(dirname "${dtbdir}")") device trees: ${before} MB -> ${after} MB"
 done
 
-### 6. Enable units
+### 6. Stop CoreOS synthesising a /boot mount that cannot exist
+#
+# bootc install lays down two partitions, ESP and root, so /boot is a plain
+# directory inside the root filesystem and there is nothing to mount. But
+# coreos-boot-mount-generator synthesises a /boot mount unit pointing at
+# /dev/disk/by-label/boot whenever there is no boot= karg -- and bootc's config
+# sets boot-mount-spec = "" precisely so that karg is omitted. No such device
+# exists, so boot.mount hangs on the device timeout, local-fs.target fails and
+# most of userspace follows it down. Seen on a Pi 4.
+#
+# The generator exits early if fstab already covers /boot (its line 16), so a
+# self-bind is the documented way out: it satisfies the check and mounts a
+# directory over itself, which is a no-op.
+cat > /etc/fstab <<'FSTABEOF'
+# /boot is inside the root filesystem: bootc install to-disk creates no
+# separate boot partition. This entry exists only so
+# coreos-boot-mount-generator does not invent a mount for LABEL=boot, which
+# does not exist here. Removing it hangs the boot.
+/boot /boot none bind 0 0
+FSTABEOF
+
+### 7. Enable units
 systemctl enable pi-core-firmware-check.service
 systemctl enable avahi-daemon.service
 systemctl enable pi-core-growfs.service
 
-### 7. Cleanup
+### 8. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo
 # `countme` state under /var/lib/dnf/repos with no tmpfiles.d entry
 # (var-tmpfiles). Both trip bootc container lint.
