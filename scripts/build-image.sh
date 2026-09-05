@@ -120,11 +120,41 @@ if [[ -z "${ESP}" ]]; then
 fi
 log "ESP is ${ESP}"
 
+# Tell GRUB which filesystem holds /boot.
+#
+# The stub grub.cfg on the ESP sources ${config_directory}/bootuuid.cfg for a
+# BOOT_UUID and, failing that, falls back to `search --label boot`. Fedora
+# CoreOS's bootc config sets skip-boot-uuid = true so bootupd does not write
+# that file, because on a CoreOS install the UUIDs are regenerated at first
+# boot. Nothing regenerates them here, and bootc's layout has no separate boot
+# partition, so nothing is labelled "boot" either: the search finds nothing,
+# prefix stays empty and GRUB lands in a rescue prompt.
+#
+# Stamping the root filesystem's UUID fixes it. The stub already copes with
+# /boot living inside root -- it tries ($prefix)/grub2 and then
+# ($prefix)/boot/grub2.
+ROOTDEV=""
+for part in "${LOOP}"p*; do
+    [[ -b "${part}" ]] || continue
+    if [[ "$(sudo blkid -p -s LABEL -o value "${part}" 2>/dev/null)" == "root" ]]; then
+        ROOTDEV="${part}"
+        break
+    fi
+done
+[[ -n "${ROOTDEV}" ]] || die "no partition labelled 'root' on ${LOOP}"
+ROOT_UUID="$(sudo blkid -p -s UUID -o value "${ROOTDEV}")"
+[[ -n "${ROOT_UUID}" ]] || die "could not read the root filesystem UUID from ${ROOTDEV}"
+log "root filesystem is ${ROOTDEV} (UUID ${ROOT_UUID})"
+
 MNT="$(mktemp -d)"
 sudo mount "${ESP}" "${MNT}"
+log "stamping BOOT_UUID into the GRUB stub"
+printf 'set BOOT_UUID=%s\n' "${ROOT_UUID}" | sudo tee "${MNT}/EFI/fedora/bootuuid.cfg" >/dev/null
 log "copying Pi firmware onto the ESP"
 # --ignore-existing: never clobber the bootloader bootc just installed.
 sudo rsync -ah --ignore-existing --chown 0:0 build/rpi-firmware/ "${MNT}/"
+grep -q "${ROOT_UUID}" "${MNT}/EFI/fedora/bootuuid.cfg" \
+    || die "bootuuid.cfg does not carry the root UUID — GRUB would not find /boot"
 sudo sync
 sudo umount "${MNT}"
 rmdir "${MNT}"; MNT=""
