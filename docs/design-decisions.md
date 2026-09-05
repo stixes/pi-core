@@ -42,8 +42,8 @@ listens on :9090. That absence is load-bearing now — see below — and
 ## Default credentials on the published image
 
 The image on the releases page ships `core` / `core`, with SSH password
-authentication enabled and the password expired so the first login must replace
-it. Stock Fedora CoreOS disables password authentication; we re-enable it in
+authentication enabled and nothing forcing a change. Stock Fedora CoreOS
+disables password authentication; we re-enable it in
 `10-pi-core-passwords.conf`, which has to sort before FCOS's
 `40-disable-passwords.conf` because sshd takes the first value it obtains for a
 keyword.
@@ -53,21 +53,24 @@ adapter, no per-device config, no key baked in for one person. That is what
 DietPi and Raspberry Pi OS have always done, and it is the reason either is
 usable by someone who owns one Pi and no lab.
 
-What it costs, stated plainly: between first boot and first login, the machine
-accepts a password that is published in the release notes, from anywhere on the
-LAN, and mDNS tells the LAN where to find it. The mitigations are narrow and
-deliberate:
+What it costs, stated plainly: for as long as the owner leaves those credentials
+alone, the machine accepts a password published in the release notes, from
+anywhere on the LAN, and mDNS tells the LAN where to find it.
 
-- the password is expired, so the window closes at first login, not whenever
-  the owner gets around to it;
+An earlier version expired the password so the first login had to replace it.
+That was removed deliberately: whether `core` / `core` is acceptable is the
+owner's judgement about their own network, and forcing the issue is exactly the
+paternalism the DietPi model declines. What remains is narrower and does not
+override that decision:
+
 - `cockpit-ws` is absent, so there is no browser-shaped second front door on
   :9090 — uCore enables password auth for localhost, which a web login would
   otherwise turn into a remote credential;
-- the risk is documented where someone about to flash it will read it, not
-  buried here.
+- the risk is documented in the release notes and in INSTALL.md, where someone
+  about to flash it will read it, rather than buried here.
 
-Someone who wants none of this builds their own image: `just ignition` bakes in
-an SSH key and leaves password authentication off.
+Someone who wants none of this changes the password, or adds a key and sets
+`PasswordAuthentication no`, at the first login.
 
 ## mDNS, reversing an earlier decision
 
@@ -118,21 +121,34 @@ Zincati fights a Universal Blue rebase, so the Ignition config masks it and lets
 Compose rather than podman Quadlet, because an OS rebase can orphan the
 container runtime that units assume.
 
-## Headless setup uses our own config file, not Ignition
+## One install path, configured after login
 
-Per-device settings (hostname, SSH key, password, timezone, tailscale key) come
-from `pi-core.conf` on the card's FAT partition, applied on first boot of the
-pi-core image by `pi-core-provision`.
+The only supported install is: download the published image, flash it, boot it,
+log in as `core`. There is no build-time configuration, nothing to edit on the
+card, and no per-device state anywhere in this repository.
 
-Ignition cannot do this. Its config is baked into the boot partition at install
-time, and the spec (v3.5) only fetches from `http`, `https`, `tftp`, `s3`,
-`arn`, `gs` and `data` — no local files, no partitions. The `oem://` scheme
-that turns up in search results is Ignition v0.20, from the Container Linux
-era, and is long gone.
+Two earlier mechanisms did that job and are gone:
 
-So the choice was: re-render and re-flash per device, or add a small layer that
-reads a file a human can edit in any laptop. The file is parsed with an
-explicit key whitelist rather than sourced, so a value cannot execute anything.
+- **`pi-core.conf` on the card's FAT partition**, read on first boot by
+  `pi-core-provision`. It existed because Ignition cannot read a local file —
+  its config is baked into the boot partition at install time and the spec
+  (v3.5) fetches only from `http`, `https`, `tftp`, `s3`, `arn`, `gs` and
+  `data`. (The `oem://` scheme that turns up in search results is Ignition
+  v0.20, Container Linux era, long gone.) So it was a real solution to a real
+  constraint — it was just solving a problem the published image does not have.
+- **Per-device Ignition rendering**, which baked one person's SSH key into a
+  config nobody else could use.
+
+Both bought pre-boot configuration, and pre-boot configuration is precisely
+what an image handed to a stranger cannot rely on. `hostnamectl`,
+`authorized_keys` and `timedatectl` already do this after login, on a machine
+that is by then an ordinary Fedora CoreOS host. Keeping a second, bespoke way
+to do the same things meant two code paths, two sets of tests and two places
+for the docs to drift.
+
+The cost is that every machine arrives as `pi-core` and they collide over mDNS
+until renamed. Renaming is one command, and anyone with two Pis will hit it
+immediately.
 
 ## The owner is derived, never committed
 

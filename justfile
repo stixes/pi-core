@@ -25,30 +25,15 @@ inspect:
         echo "== firmware stash =="; ls -1 /usr/lib/pi-core/firmware; \
         echo "== versions =="; cat /usr/lib/pi-core/firmware/.versions'
 
-# Render build/pi.ign from the butane template
+# Render build/pi.ign from the butane template (used by `just image`)
 ignition:
     ./scripts/render-ignition.sh
-
-# Generate a password hash for console login (PI_PASSWORD_HASH)
-password-hash:
-    @mkpasswd -m yescrypt
 
 # Download the Raspberry Pi firmware payload
 firmware:
     ./scripts/fetch-firmware.sh
 
-# DESTRUCTIVE: flash Fedora CoreOS + firmware to a card. No argument = show
-# usage and list candidate devices.
-flash DISK="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ -z "{{DISK}}" ]]; then
-        exec ./scripts/flash.sh
-    fi
-    just ignition
-    ./scripts/flash.sh "{{DISK}}"
-
-# Build a flashable .img (FCOS + ignition + Pi firmware) to hand to Rufus/Etcher
+# Build the flashable .img that gets published — the only supported install
 image:
     just ignition
     ./scripts/build-image.sh
@@ -60,19 +45,11 @@ push:
         "ghcr.io/$owner/$IMAGE_NAME:$DEFAULT_TAG"
 
 # Everything that can run without hardware or a registry
-test: test-static test-provision test-image
+test: test-static test-image
 
 # Tier 0: linting, config validation, env-file format (seconds)
 test-static:
     ./tests/static.sh
-
-# Unit tests for the headless provisioner's config parsing (no image needed)
-test-provision:
-    ./tests/provision.sh
-
-# Show what a pi-core.conf would do, without applying it
-provision-dry-run CONF:
-    PI_CORE_ESP_DIR="$(dirname "{{CONF}}")" bash system_files/usr/bin/pi-core-provision --dry-run
 
 # Tier 1: assertions against the locally built image
 test-image:

@@ -37,25 +37,28 @@ Pi EEPROM  ->  config.txt (kernel=rpi-u-boot.bin)  ->  U-Boot
 U-Boot rather than an EDK2 chainloader, `ucore-minimal` rather than `ucore`, and
 the rest of the reasoning: [docs/design-decisions.md](docs/design-decisions.md).
 
-Step-by-step from a blank card: [INSTALL.md](INSTALL.md).
+## Installing
 
-## Just want a running Pi?
+Download, flash, boot, log in — that is the whole install, and it is the only
+one supported. There is no build-time configuration and nothing to edit on the
+card; a machine is configured after you log into it. Step by step:
+[INSTALL.md](INSTALL.md).
 
 Take the prebuilt image from the [releases page](../../releases), flash
 `pi-core-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher, Rufus
 (DD mode) or `dd`, and boot it. Log in as **`core` / `core`**, at the console or
-over SSH at `pi-core.local`; the password is expired, so the first login makes
-you change it.
+over SSH at `pi-core.local`.
 
 That image enables SSH password authentication and advertises itself over mDNS
 so it can be reached with nothing but a flashed card — which also means the
-published password works from anywhere on the LAN until you finish that first
-login. On a network you do not control, log in from a console before connecting
-Ethernet. The reasoning is in
+published password works from anywhere on the LAN for as long as you leave it
+in place. Changing it is your call, not something the image forces. On a network
+you do not control, log in from a console before connecting Ethernet. The reasoning is in
 [docs/design-decisions.md](docs/design-decisions.md#default-credentials-on-the-published-image).
 
-Building it yourself instead bakes in your own SSH key and leaves password
-authentication off.
+Then configure it in place: `hostnamectl set-hostname`, add your key, and set
+`PasswordAuthentication no` in `/etc/ssh/sshd_config.d/10-pi-core-passwords.conf`
+to close that window for good.
 
 ## Usage
 
@@ -65,15 +68,14 @@ just build                  # build locally (qemu on x86; slow but works)
 just test                   # static checks + image assertions
 just inspect                # sanity-check the built image
 just ignition               # render build/pi.ign
-just password-hash          # console password hash (see INSTALL.md)
-just flash /dev/sdX         # DESTRUCTIVE: FCOS + firmware onto a card
-just image                  # build a flashable .img instead of writing a card
+just image                  # build the flashable .img that gets published
 just test-supply-chain      # verify the published image's signature
 just test-hardware <host>   # assertions against a booted Pi, over SSH
 ```
 
-`just flash` must run **on the host, not in Toolbx** — root in a container maps
-to a different UID and corrupts ownership on the ESP.
+`just image` must run **on the host, not in Toolbx** — root in a container maps
+to a different UID and corrupts ownership on the ESP. It also needs `sudo`, for
+loop devices and mounting the image's EFI partition.
 
 ## Layout
 
@@ -84,11 +86,10 @@ to a different UID and corrupts ownership on the ESP.
 | `Containerfile` | `FROM ucore-minimal:stable`, runs `build.sh` |
 | `build_files/build.sh` | Package installs + the firmware stash |
 | `system_files/` | Overlay copied to `/` (the `pi-core-firmware` helper and its unit) |
-| `ignition/pi.bu.in` | Butane template for first boot (autorebase); model-agnostic |
-| `provisioning/pi-core.conf.example` | Headless per-device settings, copied to the card |
+| `ignition/pi.bu.in` | Butane template for first boot (login + autorebase); model-agnostic |
 | `scripts/fetch-firmware.sh` | Pull + extract the Pi firmware payload |
 | `scripts/render-ignition.sh` | Template -> `build/pi.ign` |
-| `scripts/flash.sh` | FCOS install + firmware onto the ESP |
+| `scripts/build-image.sh` | FCOS + firmware -> the published `.img` |
 | `scripts/repo-owner.sh` | Derives the GHCR owner; never hardcoded |
 | `tests/` | static / image / supply-chain / hardware tiers |
 | `docs/design-decisions.md` | Why the code looks the way it does |

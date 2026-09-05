@@ -38,14 +38,9 @@ Serial remains the best option and a USB-TTL adapter is cheap insurance, but
 **acceptance is runnable without one.** If you have no serial console, do both
 of the following or you will be debugging blind:
 
-1. **Set a console password.** The default config is SSH-key only, so a machine
-   that boots but never reaches the network cannot be logged into at all, even
-   with a monitor attached:
-
-   ```bash
-   export PI_PASSWORD_HASH=$(just password-hash)
-   just ignition
-   ```
+1. **Use the console login.** The image ships `core` / `core`, so a machine
+   that boots but never reaches the network can still be logged into with a
+   monitor and keyboard.
 
 2. **Keep a monitor attached from power-on.** Note the kernel only logs to HDMI
    from the second boot (see `console=tty0` in `ignition/pi.bu.in`), so on the
@@ -119,16 +114,20 @@ these as live questions rather than assumptions:
 - [ ] **A7** (Pi 5) Record whether thermals/fan behave; fan control was still
       incomplete in Fedora's Pi 5 support and may simply be absent.
 
-## B. First-boot provisioning
+## B. First boot and login
 
 - [ ] **B1** Ignition ran without error —
       `journalctl -b 0 -u ignition-files.service -u ignition-fetch.service`
       shows no failures.
-- [ ] **B2** The `core` user exists with your key, and `/etc/hostname` is what
-      you set.
+- [ ] **B2** Logging in at the console as `core` / `core` works and gives a
+      shell.
 - [ ] **B3** `systemctl is-enabled zincati.service` reports `masked`.
-- [ ] **B4** The machine appears in your DHCP leases and accepts SSH. **This is
-      the handover point** — from here on the checks are scripted.
+- [ ] **B4** `avahi-daemon` is running and `pi-core.local` resolves from another
+      machine on the same network. Record whether it needed the DHCP address
+      instead — mDNS is best-effort and this is the check most likely to depend
+      on the network rather than the image.
+- [ ] **B5** The machine accepts SSH with the password set at B2. **This is the
+      handover point** — from here on the checks are scripted.
 
 ## C. Autorebase
 
@@ -145,7 +144,7 @@ Record: wall-clock time for the pull, and the link speed if known.
 
 # Part 2 — automated, over SSH
 
-Once **B4** passes, stop hand-checking and run:
+Once **B5** passes, stop hand-checking and run:
 
 ```bash
 just test-hardware <address>        # or user@host
@@ -222,7 +221,7 @@ person can compare against it.
 
 | Stopped at | Look at first |
 |---|---|
-| A1 | EEPROM not updated; the firmware never reached the ESP (card flashed inside a container?); or, on Pi 5, the wrong serial connector |
+| A1 | EEPROM not updated; the firmware never reached the ESP (built inside a container?); or, on Pi 5, the wrong serial connector |
 | A2 | `rpi-u-boot.bin` absent or misnamed — `config.txt` must say `kernel=rpi-u-boot.bin` |
 | A3 | GRUB/BLS missing — the FCOS install itself did not complete |
 | A4–A5 | Kernel or initramfs problem; capture the full serial log |

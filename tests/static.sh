@@ -50,38 +50,8 @@ else fail "shell source != CI filter"; diff /tmp/env.source /tmp/env.ci | sed 's
 if diff -q /tmp/env.source /tmp/env.just >/dev/null; then pass "shell source == just dotenv"
 else fail "shell source != just dotenv"; diff /tmp/env.source /tmp/env.just | sed 's/^/      /'; fi
 
-head_ "flash.sh safety"
-OUT=$(./scripts/flash.sh 2>&1); RC=$?
-if [[ "$RC" -eq 0 ]]; then pass "no argument prints usage and exits 0"; else fail "no-arg exited $RC"; fi
-expect "usage lists candidate devices" 'likely candidates' "$OUT"
-
-# The refuse-to-erase-this-machine guard must actually fire. It silently did
-# not on ostree/composefs hosts, where findmnt -no SOURCE / returns
-# "composefs" rather than a block device.
-SYSDISK=""
-for mp in /sysroot /boot /; do
-    src=$(findmnt -no SOURCE "$mp" 2>/dev/null | head -1); src="${src%%[*}"
-    [[ "$src" == /dev/* ]] || continue
-    pk=$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)
-    [[ -n "$pk" ]] && { SYSDISK="/dev/$pk"; break; }
-done
-if [[ -n "$SYSDISK" ]]; then
-    OUT=$(./scripts/flash.sh "$SYSDISK" 2>&1); RC=$?
-    if [[ "$RC" -ne 0 ]]; then pass "refuses this machine's own disk (${SYSDISK})"; else fail "DID NOT refuse ${SYSDISK}"; fi
-    expect "says why" 'backs a filesystem of THIS machine' "$OUT"
-else
-    skip "could not identify this machine's disk; guard untested here"
-fi
-
-head_ "ignition"
-# CI has no SSH key; the template still needs validating, so synthesise a
-# throwaway one when the configured key is absent.
-if [[ ! -r "${SSH_PUBKEY_FILE:-$HOME/.ssh/id_rsa.pub}" ]]; then
-    TMPKEY=$(mktemp -u /tmp/pi-core-testkey.XXXXXX)
-    ssh-keygen -q -t ed25519 -N '' -C 'pi-core-test' -f "$TMPKEY"
-    export SSH_PUBKEY_FILE="${TMPKEY}.pub"
-    skip "no user SSH key; validating the template with a throwaway key"
-fi
+head_ "ignition (the published image's config)"
+# This config is shipped to strangers, so assert what it must and must not carry.
 if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
     pass "butane --strict renders build/pi.ign"
     if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi.ign >/tmp/iv.out 2>&1; then
@@ -96,22 +66,9 @@ if ./scripts/render-ignition.sh >/tmp/ign.out 2>&1; then
     # shellcheck disable=SC2031
     WANT="ghcr.io/${OWNER}/${IMAGE_NAME:?}:${DEFAULT_TAG:?}"
     if grep -q "$WANT" build/pi.ign; then pass "autorebase targets $WANT"; else fail "autorebase does not target $WANT"; fi
-else
-    fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
-fi
-
-head_ "generic ignition (the published image's config)"
-# This one is shipped to strangers, so assert what it must and must not carry.
-if PI_GENERIC=1 ./scripts/render-ignition.sh >/tmp/gign.out 2>&1; then
-    pass "renders"
-    if podman run --rm -i quay.io/coreos/ignition-validate:release - < build/pi.ign >/tmp/giv.out 2>&1; then
-        pass "ignition-validate accepts it"
-    else
-        fail "ignition-validate rejected it"; sed 's/^/      /' /tmp/giv.out | head
-    fi
-    # No developer's key may leak into an image handed to strangers.
+    # No developer's key may reach an image handed to strangers.
     if grep -q sshAuthorizedKeys build/pi.ign; then
-        fail "generic config carries an SSH key — it must ship none"
+        fail "carries an SSH key — the published config must ship none"
     else
         pass "carries no SSH key"
     fi
@@ -120,18 +77,8 @@ if PI_GENERIC=1 ./scripts/render-ignition.sh >/tmp/gign.out 2>&1; then
     else
         fail "no password hash — nothing could log in"
     fi
-    # A default password that survives setup is the whole risk; the expiry unit
-    # is what bounds it.
-    if grep -q 'pi-core-expire-password.service' build/pi.ign; then
-        pass "expires the default password on first login"
-    else
-        fail "no expiry unit — core/core would persist indefinitely"
-    fi
 else
-    fail "generic render failed"; sed 's/^/      /' /tmp/gign.out | head
+    fail "butane render failed"; sed 's/^/      /' /tmp/ign.out | head
 fi
-# Leave build/pi.ign as the personal render, not the generic one: `just flash`
-# and `just image` both consume it and must not silently pick up core/core.
-./scripts/render-ignition.sh >/dev/null 2>&1 || true
 
 summary "tier 0"

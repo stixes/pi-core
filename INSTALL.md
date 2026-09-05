@@ -1,58 +1,39 @@
 # Installing pi-core on a Raspberry Pi
 
-From a Pi and a blank SD card to a running, self-updating pi-core host.
+Download an image, flash it, boot it, log in. That is the whole install, and it
+is the only one supported: there is no build-time configuration and nothing to
+edit on the card. Everything about a machine is set after you log into it.
 
 ## Supported models
 
 | Model | Status | Notes |
 |---|---|---|
-| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§8) |
+| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§7) |
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
 | Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship, but 1 GB (or less) RAM is below what FCOS plus containers wants. May work; untested, unsupported |
-
-Everything below applies to Pi 5 and Pi 4 alike unless a step says otherwise.
-
-Everything up to first boot happens on your workstation; the Pi is only powered
-on twice.
 
 > **Untested on hardware.** Every step below is derived from the Fedora CoreOS
 > Raspberry Pi 4 documentation and from what the built image actually contains,
 > but no one has run it end to end on a real Pi yet. Expect to debug.
 
-## Shortcut: the published image
-
-If you just want a running Pi and do not need your own SSH key baked in, skip
-everything below and take the prebuilt image from the
-[releases page](../../releases): flash `pi-core-*.img.xz`, boot it, and log in
-as **`core` / `core`** — at the console, or over SSH at `pi-core.local` once it
-has an address. The password is expired on delivery, so the first login makes
-you change it.
-
-That image enables SSH password authentication and advertises itself over mDNS,
-which is what makes a card-only install possible and also means the published
-credentials are reachable from the LAN until you finish that first login. On a
-network you do not control, log in from a console before connecting Ethernet.
-See `docs/design-decisions.md` for why it is built that way.
-
-The rest of this document is the build-it-yourself path, which bakes in your
-own SSH key instead.
-
 ## 0. What you need
 
 - A Raspberry Pi 5 or 4
 - SD card, 16 GB or more — plus a second, throwaway card for the EEPROM update
-- A card reader on your workstation
-- `podman`, `jq`, `rsync`, `just`, and `sudo` on the workstation
-- **Strongly recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails
-  before networking comes up, this is the only way to see why.
+- A card reader, and any imaging tool: Raspberry Pi Imager, balenaEtcher,
+  Rufus, or `dd`
+- **Recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails before
+  networking comes up, this is the only way to see why.
+
+You do not need this repository, or podman, or `just`. Those are for building
+the image, not installing it.
 
 ### Storage
 
 ostree deployments are write-heavy and none of this is write-tuned, so an SD
 card will wear out faster than you would like.
 
-- **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM;
-  the procedure is identical, just point `DISK=` at the USB device.
+- **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM.
 - **Pi 5: SD card only.** U-Boot 2026.04 has no BCM2712 PCIe support, so NVMe
   is not a boot option, and USB boot is not working in Fedora's Pi 5 support
   either. Use a good endurance-rated card and expect to replace it.
@@ -67,131 +48,30 @@ Imager → Misc utility images → Bootloader → SD Card Boot), put it in the P
 and power on. The activity LED flashes rapidly and the screen goes green when
 the update is done — roughly ten seconds. Power off and remove the card.
 
-## 2. Configure your install
+## 2. Flash the image
+
+Download `pi-core-*.img.xz` from the [releases page](../../releases) and write
+it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
+DD/raw mode. Or:
 
 ```bash
-git clone <this repo, or your fork>
-cd pi-core
-
-export PI_HOSTNAME=pi-core                       # optional, defaults to pi-core
-export SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub     # optional, defaults to id_rsa.pub
-
-just ignition
+xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-This renders `build/pi.ign`. It creates the `core` user with your key, masks
-zincati, and installs the first-boot service that rebases onto
-`ghcr.io/<owner>/pi-core:stable` — `<owner>` is derived from your git remote,
-so a fork points at its own image automatically.
-
-By default there is **no password login** — SSH key only, and if you lose the
-key you reflash.
-
-**Set a console password if you have no serial console.** Without one, a
-machine that boots but never reaches the network cannot be logged into even
-with a monitor and keyboard attached:
+Check the download first if you like — `cosign.pub` is in this repository:
 
 ```bash
-export PI_PASSWORD_HASH=$(just password-hash)
-just ignition
+cosign verify-blob --key cosign.pub --signature SHA256SUMS.sig SHA256SUMS
+sha256sum -c SHA256SUMS
 ```
 
-## 2b. Headless setup via `pi-core.conf`
-
-`just flash` leaves a **`pi-core.conf`** on the card's FAT partition — the one
-your laptop mounts automatically. Edit it there, after flashing, before first
-boot. This is the DietPi `dietpi.txt` idea: per-device settings live on the
-card, so the same image and the same Ignition config serve every device.
-
-```
-PI_HOSTNAME=pi-core
-PI_SSH_KEY=ssh-ed25519 AAAA... you@host
-PI_PASSWORD_HASH=          # just password-hash
-PI_TIMEZONE=Europe/Copenhagen
-PI_TAILSCALE_AUTHKEY=
-PI_WIPE_SECRETS=1
-```
-
-Every key is optional; an empty file changes nothing. Check what a card would
-do before booting it:
-
-```bash
-just provision-dry-run /run/media/$USER/EFI-SYSTEM/pi-core.conf
-```
-
-Two caveats worth knowing:
-
-- **It applies on the second boot**, not the first. The provisioner lives in
-  the pi-core image, and the first boot is still stock Fedora CoreOS running
-  the rebase. Anything needed to *reach* the network (so far: nothing, since
-  this is ethernet-only) must still come from the Ignition config.
-- **Secrets on the card are plaintext**, readable in any laptop. With
-  `PI_WIPE_SECRETS=1` (the default) the password hash and tailscale key are
-  blanked from the file once applied.
-
-## 3. Flash the card
-
-Run it with no argument to see usage and the candidate devices:
-
-```bash
-just flash
-```
-
-It lists removable/hotplug disks separately from this machine's own, and marks
-the latter. Then, once you have confirmed the size and model match your card:
-
-```bash
-just flash /dev/sdX
-```
-
-**This erases the device.** The script refuses any disk backing a filesystem of
-the machine you are on, and asks you to type the device name back before it
-writes anything.
-
-Run this **on the host, not inside Toolbx or distrobox** — container root maps
-to a different UID and will corrupt ownership on the EFI partition, producing a
-card that looks fine and does not boot.
-
-The script asks you to type the device name back before it does anything. It
-then downloads Fedora CoreOS (~1 GB), writes it, fetches the Raspberry Pi
-firmware, and copies the firmware onto the card's EFI partition.
-
-### Or: build an image file and flash it elsewhere
-
-`just flash` writes straight to a card on this machine. If you would rather
-flash with Rufus, balenaEtcher or `dd` — on another machine, or to several
-cards — build the image as a file instead:
-
-```bash
-just image
-```
-
-It writes `build/pi-core-<stream>-<date>.img` (~2.9 GB) and an `.xz` alongside
-it. Flash either one; Rufus needs DD/raw mode. Set `COMPRESS=0` to skip the
-compressed copy.
-
-The result is byte-for-byte what `just flash` would have put on the card: the
-same `coreos-installer` writes the same stock Fedora CoreOS, with the same
-Ignition config embedded and the same Pi firmware on the ESP. It is not an
-`image-builder` disk (see `docs/design-decisions.md`) — only the delivery
-differs.
-
-It needs `sudo` for loop devices and mounting the ESP, and must run on the host
-rather than in Toolbx/distrobox, for the same UID-mapping reason as `just
-flash`. The downloaded Fedora CoreOS image is cached in `build/fcos/` and
-reused; `rm -rf build/fcos` to pick up a newer one.
-
-Because the card's FAT partition is readable anywhere, Windows included, the
-usual sequence is: flash, re-insert the card, then edit `pi-core.conf` on it as
-in step 2b.
-
-## 4. First boot
+## 3. First boot
 
 Put the card in the Pi and power on. Then wait — the Pi does a lot here:
 
 1. **20–30 seconds of nothing.** No output at all. This is normal.
 2. U-Boot starts, GRUB appears, Fedora CoreOS boots.
-3. Ignition applies your config on first boot.
+3. Ignition applies the built-in config.
 4. `pi-core-autorebase.service` pulls `ghcr.io/<owner>/pi-core:stable` and
    reboots. **This downloads a multi-gigabyte image** — on a slow card and a
    slow link it can take a long while. The Pi looks idle; it is not.
@@ -200,42 +80,43 @@ Put the card in the Pi and power on. Then wait — the Pi does a lot here:
 The whole sequence is two reboots. Do not pull the power because it seems stuck;
 watch the serial console if you want to see what it is actually doing.
 
-## 5. Find it on the network
+The root filesystem grows to fill the card on that first boot.
 
-The image runs `avahi-daemon` and opens mdns in the default firewall zone, so
-the host answers to its own name:
+## 4. Log in
+
+```
+user: core
+password: core
+```
+
+That is the login for every pi-core machine, and it stays that way until you
+change it.
+
+At the console with a monitor and keyboard, or over SSH once it has an address:
 
 ```bash
 ssh core@pi-core.local
 ```
 
-Use whatever you set `PI_HOSTNAME` to, not `pi-core`, if you changed it.
-
 mDNS is best-effort: some networks block multicast, and a few consumer APs drop
-it between wireless and wired clients. If `.local` does not answer, fall back to
-your router's DHCP lease table and `ssh core@<address>` — nothing else depends
-on mDNS.
+it between wireless and wired clients. If `.local` does not answer, get the
+address from your router's DHCP lease table and `ssh core@<address>` — nothing
+else depends on mDNS.
 
-*(This reverses an earlier promise that `.local` would never resolve. It exists
-now because the published image has to be reachable with nothing but a flashed
-card. `tests/image-assertions.sh` fails if the responder ever disappears
-again.)*
+## 5. Recommended next steps
 
-## 6. Verify
+Nothing here is enforced; the machine is a working Fedora CoreOS host as it
+stands.
 
-```bash
-# Are we actually running our image, not plain uCore?
-bootc status
+- Change the password — `passwd`.
+- Add your SSH key to `~/.ssh/authorized_keys`.
+- Once that key works, set `PasswordAuthentication no` in
+  `/etc/ssh/sshd_config.d/10-pi-core-passwords.conf` and restart `sshd`.
+- Give it its own hostname — every pi-core arrives as `pi-core` and they
+  collide over mDNS.
+- Set the timezone, and bring up tailscale if you use it.
 
-# Is the ESP firmware in step with the image?
-pi-core-firmware check
-```
-
-`bootc status` should name `ghcr.io/<owner>/pi-core:stable`. If it still says
-`ucore-minimal`, the rebase did not run — check
-`journalctl -u pi-core-autorebase.service`.
-
-## 7. Day-to-day
+## 6. Day-to-day
 
 ```bash
 sudo bootc upgrade          # pull a new image; applies on reboot
@@ -261,7 +142,7 @@ sudo systemctl reboot
 This is deliberately not automatic: a bad firmware write bricks the boot and
 there is no rollback for it. Your `config.txt` is preserved.
 
-## 8. Serial console
+## 7. Serial console
 
 Worth wiring up before you need it — **and the wiring differs by model.** This
 is not interchangeable; the device trees disagree about which UART is the
@@ -282,16 +163,17 @@ screen /dev/ttyUSB0 115200      # or: picocom -b 115200 /dev/ttyUSB0
 `stdout-path` from the firmware-provided device tree, so it passes the right
 console through to the kernel without extra configuration.
 
-## 9. If it goes wrong
+## 8. If it goes wrong
 
 | Symptom | Likely cause |
 |---|---|
-| No output at all, ever | EEPROM not updated (step 1), or the firmware never landed on the EFI partition |
+| No output at all, ever | EEPROM not updated (step 1) |
 | Rainbow screen, then nothing | Firmware loaded but `rpi-u-boot.bin` is missing or unreadable |
-| Boots FCOS but no SSH | Ignition failed — check the serial console; a malformed key is the usual cause |
-| SSH works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
-| Card boots on the workstation but not the Pi | Flashed from inside a container (step 3) |
-| Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§8) |
+| Boots FCOS but no login | Ignition failed — check the serial console |
+| Login works, still plain uCore | Rebase failed; `journalctl -u pi-core-autorebase.service` |
+| `core` / `core` rejected | You already changed it — try the console, or your own password |
+| `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
+| Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§7) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
 
 Boot chain, for orientation:

@@ -2,9 +2,9 @@
 # Build a flashable Raspberry Pi disk image: Fedora CoreOS (aarch64) with our
 # Ignition config embedded and the Pi firmware + U-Boot on its ESP.
 #
-# This is scripts/flash.sh writing to a loop-mounted file instead of a card, so
-# the result can be handed to Rufus, balenaEtcher or `dd` on any machine. It is
-# NOT a departure from "rebase, not a disk image" (docs/design-decisions.md):
+# This builds the artifact published on the releases page — the only supported
+# way to install pi-core. It is NOT a departure from "rebase, not a disk image"
+# (docs/design-decisions.md):
 # the bytes still come from coreos-installer applying stock FCOS, customisation
 # still lives in the Containerfile, and the machine still rebases onto the
 # pi-core image on first boot. Only the delivery changes.
@@ -12,8 +12,8 @@
 # Needs root (loop devices, mounting the ESP, privileged podman). Safe: it only
 # ever writes to the image file and the loop device backing it.
 #
-# MUST be run on the host, NOT inside a Toolbx/distrobox container — same UID
-# mapping problem that makes flash.sh corrupt ESP ownership.
+# MUST be run on the host, NOT inside a Toolbx/distrobox container: container
+# root maps to a different UID and corrupts ownership on the ESP.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
@@ -105,11 +105,6 @@ log "copying firmware onto the ESP"
 # --ignore-existing: never clobber what coreos-installer put there (EFI/, grub).
 sudo rsync -ah --ignore-existing --chown 0:0 build/rpi-firmware/ "${MNT}/"
 
-if [[ ! -e "${MNT}/pi-core.conf" ]]; then
-    sudo cp provisioning/pi-core.conf.example "${MNT}/pi-core.conf"
-    sudo chown 0:0 "${MNT}/pi-core.conf"
-    log "wrote pi-core.conf to the boot partition"
-fi
 sudo sync
 sudo umount "${MNT}"
 rmdir "${MNT}"; MNT=""
@@ -131,16 +126,12 @@ fi
 cat <<EOF
 
 Next:
-  1. Flash ${OUT}$([[ "${COMPRESS}" == "1" ]] && echo "(.xz)") to the card.
+  1. Flash ${OUT}$([[ "${COMPRESS}" == "1" ]] && echo " (or the .xz)") to a card.
      Rufus: pick the image, DD/raw mode. balenaEtcher and dd also work.
-  2. Re-insert the card. The FAT partition mounts on any OS, Windows included.
-  3. Edit pi-core.conf on it — hostname, and PI_PASSWORD_HASH from:
-         just password-hash
-     Without a password hash a machine that boots but never reaches the
-     network cannot be logged into at all; there is no serial console here.
-  4. Boot the Pi. Expect 20-30 s of blank screen, then two reboots as Ignition
+  2. Boot the Pi. Expect 20-30 s of blank screen, then two reboots as Ignition
      rebases onto ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable.
-
-${PI_HOSTNAME:-pi-core}.local will NOT resolve — the image has no mDNS
-responder. Find the address in your DHCP leases, then: ssh core@<address>
+  3. Log in as core / core, at the console or over SSH once it has an address:
+         ssh core@${PI_HOSTNAME:-pi-core}.local
+     Everything else - password, hostname, keys, timezone - is configured
+     after that login.
 EOF

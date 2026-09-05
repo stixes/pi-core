@@ -68,7 +68,6 @@ grep -E '^hosts:' /etc/nsswitch.conf
 
 ### 4. Enable units
 systemctl enable pi-core-firmware-check.service
-systemctl enable pi-core-provision.service
 systemctl enable avahi-daemon.service
 
 ### 5. Cleanup

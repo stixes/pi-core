@@ -61,9 +61,7 @@ just test-supply-chain      # tier 1.5 — the published image
 just test-hardware <host>   # tier 3 — a booted Pi, over SSH, read-only
 just inspect                # sanity-check the built image
 just ignition               # render build/pi.ign
-just password-hash          # console password hash for the ignition config
-just flash /dev/sdX         # DESTRUCTIVE
-just image                  # flashable .img (+ .xz) for Rufus/Etcher/dd
+just image                  # build the published .img (+ .xz); needs sudo
 ```
 
 ## Tests
@@ -105,9 +103,9 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
   writes somewhere else). Change one and check the others.
 - **Never commit `cosign.key`.** It is gitignored; the CI copy lives in the
   `SIGNING_SECRET` repo secret.
-- **`scripts/flash.sh` is destructive and must run on the host**, never in
-  Toolbx/distrobox — container root maps to a different UID and corrupts ESP
-  ownership.
+- **`scripts/build-image.sh` must run on the host**, never in Toolbx/distrobox
+  — container root maps to a different UID and corrupts ESP ownership. It needs
+  `sudo` for loop devices and mounting the image's ESP.
 - **bootc does not update Pi firmware.** `bootupd` only manages
   `/boot/efi/EFI`, but the Pi needs its files at the ESP root
   (coreos/bootupd#766). Each image carries a copy at
@@ -116,27 +114,28 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 - **`/boot` must be empty in the built image**, or `bootc container lint`
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
-- **Per-device settings belong in `pi-core.conf`, not Ignition.** Ignition
-  cannot read a local file (spec v3.5: http/https/tftp/s3/arn/gs/data only), so
-  `pi-core-provision` reads a config off the card's FAT partition on first
-  boot. Parse it with the key whitelist — never `source` it.
+- **There is one install path and one Ignition config.** Download the published
+  image, flash, boot, log in as `core`, configure in place. No build-time
+  settings, nothing to edit on the card, no per-device state in this repo. Both
+  earlier mechanisms — `pi-core.conf` + `pi-core-provision`, and per-device
+  Ignition rendering with someone's SSH key — were deleted, not deprecated. Do
+  not reintroduce pre-boot configuration; an image handed to a stranger cannot
+  depend on it, and `hostnamectl`/`authorized_keys`/`timedatectl` already work
+  after login.
 - **The Ignition template is model-agnostic** — nothing in `ignition/pi.bu.in`
   is Pi 4 or Pi 5 specific, and it should stay that way. If a model needs its
   own config, that is a second template, not a conditional.
 - **The published image ships `core` / `core` on purpose.** SSH password auth is
   on (`10-pi-core-passwords.conf`, which must keep sorting before FCOS's
   `40-disable-passwords.conf` — sshd takes the *first* value for a keyword) and
-  the password is expired by the generic Ignition so first login must change it.
-  Do not "harden" this by disabling password auth: it is what makes a card-only
-  install work. Do keep `cockpit-ws` out — uCore enables password auth on
+  nothing forces a change: leaving `core` / `core` in place is the owner's
+  decision, the DietPi model. Do not "harden" this by disabling password auth or
+  by expiring the password — it is what makes a card-only install work. Do keep `cockpit-ws` out — uCore enables password auth on
   localhost, so a web login on :9090 would turn a console credential into a
-  remote one. `PI_GENERIC=1 ./scripts/render-ignition.sh` renders that config;
-  plain `just ignition` renders the personal one and must never grow a default
-  password.
-- **`console=tty0` and the optional console password are not clutter.** Without
-  the karg an attached monitor goes blank when the kernel starts; without a
-  password a machine that boots but never reaches the network cannot be logged
-  into at all. Both exist because there is no serial console here.
+  remote one.
+- **`console=tty0` is not clutter.** Without the karg an attached monitor goes
+  blank when the kernel starts, and with no serial console that leaves a
+  non-networking boot undiagnosable.
 
 ## Status
 

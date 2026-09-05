@@ -25,8 +25,8 @@ user: core
 password: core
 ```
 
-**You are required to change the password at that first login** — the account
-ships expired, so `passwd` runs before you get a shell.
+Nothing forces you to change it. Leaving it alone on a network you control is a
+legitimate choice; read the section below before making it.
 
 Log in over SSH once the Pi has an address:
 
@@ -48,10 +48,11 @@ Ethernet cable, and that convenience has a price:
 - **The host advertises itself over mDNS**, so anything on the LAN can find it
   by name without scanning.
 
-Until you complete that first login, the machine is reachable by anyone on the
-same network who knows this page exists. Treat the window between first boot
-and first login as the exposure, and keep it short. On an untrusted network,
-log in from the console before you plug in the Ethernet cable.
+For as long as those credentials stay in place, this machine is reachable by
+anyone on the same network who knows this page exists. On a home network you
+control that is a reasonable trade — it is the same one DietPi and Raspberry Pi
+OS have always offered. On a shared, guest, student or office network it is not:
+change the password from the console before you plug in the Ethernet cable.
 
 To take away the shared credential entirely, add your SSH key and set
 `PasswordAuthentication no` in `/etc/ssh/sshd_config.d/10-pi-core-passwords.conf`

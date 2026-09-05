@@ -1,22 +1,19 @@
 # pi-core first-boot config (Fedora CoreOS aarch64). Model-agnostic: nothing
 # here is Pi 4 or Pi 5 specific.
 #
-# Template: scripts/render-ignition.sh substitutes @HOSTNAME@ and @IMAGE@, and
-# either fills in or deletes the single-line @-placeholders below. Do not edit
-# the rendered .ign by hand.
+# Template: scripts/render-ignition.sh substitutes @HOSTNAME@, @IMAGE@ and
+# @PASSWORD_HASH@. Do not edit the rendered .ign by hand.
 #
-# Both credential lines are optional, and which are present depends on how the
-# config was rendered: a personal build bakes in an SSH key, the published
-# generic image ships a default password and no key at all.
+# There is exactly one config, the published image's. No SSH key belongs here:
+# the image is handed to strangers, and everything per-device is configured
+# after the first login.
 variant: fcos
 version: 1.5.0
 
 passwd:
   users:
     - name: core
-@SSH_KEYS_LINE@
-@SSH_KEY_ITEM@
-@PASSWORD_LINE@
+      password_hash: "@PASSWORD_HASH@"
       groups:
         - sudo
         - docker
