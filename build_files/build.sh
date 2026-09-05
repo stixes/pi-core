@@ -124,7 +124,30 @@ for dtbdir in /usr/lib/modules/*/dtb; do
     echo "::: pruned $(basename "$(dirname "${dtbdir}")") device trees: ${before} MB -> ${after} MB"
 done
 
-### 6. Stop CoreOS synthesising a /boot mount that cannot exist
+### 6. Say pi-core, not uCore
+#
+# The SSH login banner is pam_motd reading /run/motd.d, and 21_os_release.motd
+# is generated at boot from PRETTY_NAME. The tracker links come from
+# /usr/lib/motd.d/tracker.motd. Both point at Fedora CoreOS otherwise, which
+# sends anyone with a pi-core problem to the wrong issue tracker.
+#
+# ID stays "fedora": package tooling keys off it, and this is still Fedora
+# underneath. Only the human-facing name and links change.
+# shellcheck disable=SC1091  # exists in the build container, not in this repo
+OSVER="$(. /usr/lib/os-release; echo "${OSTREE_VERSION:-${VERSION_ID}}")"
+sed -i \
+    -e "s|^PRETTY_NAME=.*|PRETTY_NAME=\"pi-core (Fedora CoreOS ${OSVER})\"|" \
+    -e 's|^VARIANT=.*|VARIANT="pi-core"|' \
+    -e 's|^VARIANT_ID=.*|VARIANT_ID=pi-core|' \
+    /usr/lib/os-release
+cat > /usr/lib/motd.d/tracker.motd <<'MOTDEOF'
+Issues:  https://github.com/stixes/pi-core/issues
+Install: https://github.com/stixes/pi-core/blob/main/INSTALL.md
+MOTDEOF
+# shellcheck disable=SC1091
+echo "::: $(. /usr/lib/os-release; echo "${PRETTY_NAME}")"
+
+### 7. Stop CoreOS synthesising a /boot mount that cannot exist
 #
 # bootc install lays down two partitions, ESP and root, so /boot is a plain
 # directory inside the root filesystem and there is nothing to mount. But
@@ -158,7 +181,7 @@ cat > /etc/fstab <<'FSTABEOF'
 /sysroot/ostree/deploy/fedora-coreos/var /var none bind 0 0
 FSTABEOF
 
-### 7. Enable units
+### 8. Enable units
 # Enablement lives in /usr/lib/systemd/system-preset/10-pi-core.preset, not
 # here: `systemctl enable` writes to /etc, and the deployment's /etc is
 # regenerated from presets at install time, so it would be silently dropped.
@@ -170,7 +193,7 @@ FSTABEOF
 # rpm-ostreed-automatic stages updates instead.
 ln -sf /dev/null /usr/lib/systemd/system/zincati.service
 
-### 8. Cleanup
+### 9. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo
 # `countme` state under /var/lib/dnf/repos with no tmpfiles.d entry
 # (var-tmpfiles). Both trip bootc container lint.

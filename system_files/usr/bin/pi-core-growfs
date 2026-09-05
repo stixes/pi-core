@@ -38,8 +38,31 @@ else
     echo "pi-core-growfs: partition already at full size"
 fi
 
-udevadm settle || true
-xfs_growfs /sysroot 2>/dev/null || xfs_growfs / || true
+udevadm settle 2>/dev/null || true
 
-mkdir -p "$(dirname "${MARKER}")"
-touch "${MARKER}"
+# Grow through /var, not /sysroot. ostree's prepare-root.conf sets
+# `[sysroot] readonly = true`, so growing through /sysroot fails with
+#   XFS_IOC_FSGROWFSDATA xfsctl failed: Read-only file system
+# and the partition ends up bigger while the filesystem does not -- which looks
+# exactly like success. /var is a read-write mount of the same filesystem.
+# Seen on a Pi 4: partition 29.2G, filesystem 5.5G.
+GROW_AT=/var
+findmnt -no SOURCE /var >/dev/null 2>&1 || GROW_AT=/sysroot
+# Deliberately not silenced: hiding this error is what made the failure look
+# like a success in the first place.
+xfs_growfs "${GROW_AT}" || true
+
+# Verify rather than trust the exit code. xfs_growfs reports nothing useful
+# when it has nothing to do, and "nothing to do" is both the success case on a
+# second boot and the failure case when the kernel has stale partition size.
+PART_BYTES="$(blockdev --getsize64 "${SRC}" 2>/dev/null || echo 0)"
+read -r FS_BLOCKS FS_BSIZE < <(stat -f -c '%b %S' /sysroot)
+FS_BYTES=$(( FS_BLOCKS * FS_BSIZE ))
+if (( PART_BYTES > 0 && FS_BYTES * 100 >= PART_BYTES * 95 )); then
+    echo "pi-core-growfs: root filesystem fills the partition ($(( FS_BYTES / 1024 / 1024 )) MiB)"
+    mkdir -p "$(dirname "${MARKER}")"
+    touch "${MARKER}"
+else
+    echo "pi-core-growfs: filesystem is $(( FS_BYTES / 1024 / 1024 )) MiB of a $(( PART_BYTES / 1024 / 1024 )) MiB partition; leaving no marker so this retries" >&2
+    exit 1
+fi

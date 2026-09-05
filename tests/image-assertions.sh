@@ -151,6 +151,29 @@ else
     fail "zincati is not masked in /usr — it retries forever against a bootc image"
 fi
 
+head_ "branding: the login banner says pi-core"
+# pam_motd renders /run/motd.d/21_os_release.motd, generated at boot from
+# PRETTY_NAME, plus /usr/lib/motd.d/*. Left alone both send someone with a
+# pi-core problem to the Fedora CoreOS tracker.
+# shellcheck disable=SC1091  # runs inside the image, not in this repo
+PN=$(. /usr/lib/os-release; echo "$PRETTY_NAME")
+if [[ "$PN" == pi-core* ]]; then
+    pass "PRETTY_NAME is '$PN'"
+else
+    fail "PRETTY_NAME is '$PN' — the SSH banner would announce uCore"
+fi
+if grep -q 'stixes/pi-core' /usr/lib/motd.d/tracker.motd 2>/dev/null; then
+    pass "motd points at this repo's issues"
+else
+    fail "motd still points at the Fedora CoreOS tracker"
+fi
+ID_=$(grep -E '^ID=' /usr/lib/os-release | cut -d= -f2 | tr -d '"')
+if [[ "$ID_" == "fedora" ]]; then
+    pass "ID is still fedora (package tooling keys off it)"
+else
+    fail "ID changed to '$ID_' — that breaks package tooling"
+fi
+
 head_ "hostname (Ignition used to write /etc/hostname)"
 # The image cannot ship /etc/hostname: podman bind-mounts it during a build, so
 # it never reaches the image. Written at boot instead -- without it systemd
