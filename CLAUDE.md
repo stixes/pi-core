@@ -27,14 +27,17 @@ There is no Ignition config. It was deleted with the installer model — see
 Boot chain: `EEPROM -> config.txt (kernel=rpi-u-boot.bin) -> U-Boot -> its EFI
 layer -> GRUB -> BLS -> ostree deployment`.
 
-The reasoning behind each choice is in `docs/design-decisions.md` — read it
-before redesigning anything.
+What the image must do is in `docs/requirements.md`; the reasoning behind each
+choice is in `docs/design-decisions.md` — read both before redesigning
+anything.
 
 ### What belongs in `docs/`
 
 Public repo, versioned with the code. A doc earns a place here if it is
 **durable, about this project, and safe to publish**:
 
+- what the thing must do, and how each requirement is verified
+  (`requirements.md`)
 - how to build, install, operate or recover the thing
 - why the code is shaped the way it is (`design-decisions.md`)
 - behaviour a user or contributor must know

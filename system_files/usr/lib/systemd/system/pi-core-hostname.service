@@ -1,6 +1,5 @@
 [Unit]
 Description=Set the default pi-core hostname
-Documentation=https://github.com/stixes/pi-core
 # Only if the machine has no hostname of its own: `hostnamectl set-hostname`
 # writes this file, so a renamed machine is never reset.
 ConditionPathExists=!/etc/hostname

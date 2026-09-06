@@ -66,4 +66,26 @@ else
     fail "build-image.sh does not use bootc install to-disk"
 fi
 
+head_ "nothing carries an owner (requirements.md R15)"
+# A fork must publish, verify and link to itself without edits. The banner URLs
+# were hardcoded once; this is why they are not now.
+if grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
+   | grep -v 'REPO_ORGANIZATION' | grep -q .; then
+    fail "a hardcoded owner is baked into the image:"
+    grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
+        | grep -v 'REPO_ORGANIZATION' | sed 's/^/      /' | head -5
+else
+    pass "no hardcoded owner in build_files, system_files or scripts"
+fi
+
+head_ "first boot needs no network (requirements.md R3)"
+# The installer model pulled a container on first boot and made the network,
+# the clock and a registry into boot dependencies. Each of those failed on real
+# hardware. This fails the build if one comes back.
+if grep -rnE 'rpm-ostree rebase|autorebase' build_files/ system_files/ 2>/dev/null | grep -q .; then
+    fail "the image carries a first-boot rebase again — R3 says first boot must not need a registry"
+else
+    pass "no first-boot rebase in the image"
+fi
+
 summary "tier 0"

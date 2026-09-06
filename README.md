@@ -92,6 +92,7 @@ loop devices and mounting the image's EFI partition.
 | `scripts/build-image.sh` | `bootc install` + firmware -> the published `.img` |
 | `scripts/repo-owner.sh` | Derives the GHCR owner; never hardcoded |
 | `tests/` | static / image / supply-chain / hardware tiers |
+| `docs/requirements.md` | What the image has to do, and how each requirement is checked |
 | `docs/design-decisions.md` | Why the code looks the way it does |
 | `docs/hardware-acceptance.md` | The checklist a real Pi must pass |
 | `.github/workflows/build.yml` | Build, test, sign, push to GHCR (arm64 runner) |

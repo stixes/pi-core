@@ -1,6 +1,5 @@
 [Unit]
 Description=Grow the pi-core root filesystem to fill the card
-Documentation=https://github.com/stixes/pi-core
 ConditionPathExists=!/var/lib/pi-core/growfs.done
 After=local-fs.target
 Before=sshd.service
