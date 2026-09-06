@@ -52,12 +52,17 @@ do_check() {
             fi
         fi
     done
+    # Leave the verdict where pi-core-motd can read it, so the login banner does
+    # not have to mount the ESP a second time to say the same thing.
+    mkdir -p /run/pi-core 2>/dev/null || true
     if [[ "${drift}" -eq 0 ]]; then
         echo "ESP firmware matches the image."
+        echo "in step with the image" > /run/pi-core/firmware-status 2>/dev/null || true
     else
         echo
         echo "ESP firmware is out of step with this image. Review, then run:"
         echo "    sudo pi-core-firmware sync"
+        echo "DRIFT - run: sudo pi-core-firmware sync" > /run/pi-core/firmware-status 2>/dev/null || true
     fi
     return 0
 }

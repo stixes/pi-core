@@ -3,8 +3,6 @@
 set -oue pipefail
 
 FEDORA_RELEASE="${FEDORA_RELEASE:-44}"
-# Passed in by the build; a fork's banner must point at the fork, not at us.
-REPO_ORGANIZATION="${REPO_ORGANIZATION:-}"
 FW_STASH=/usr/lib/pi-core/firmware
 
 echo "::: pi-core build on $(rpm -E '%{_arch}'), Fedora $(rpm -E '%fedora')"
@@ -128,10 +126,8 @@ done
 
 ### 6. Say pi-core, not uCore
 #
-# The SSH login banner is pam_motd reading /run/motd.d, and 21_os_release.motd
-# is generated at boot from PRETTY_NAME. The tracker links come from
-# /usr/lib/motd.d/tracker.motd. Both point at Fedora CoreOS otherwise, which
-# sends anyone with a pi-core problem to the wrong issue tracker.
+# PRETTY_NAME is what pi-core-motd puts on the banner's first line, and what
+# anything else reading os-release reports. Left alone it announces uCore.
 #
 # ID stays "fedora": package tooling keys off it, and this is still Fedora
 # underneath. Only the human-facing name and links change.
@@ -142,16 +138,10 @@ sed -i \
     -e 's|^VARIANT=.*|VARIANT="pi-core"|' \
     -e 's|^VARIANT_ID=.*|VARIANT_ID=pi-core|' \
     /usr/lib/os-release
-if [[ -n "${REPO_ORGANIZATION}" ]]; then
-    cat > /usr/lib/motd.d/tracker.motd <<MOTDEOF
-Issues:  https://github.com/${REPO_ORGANIZATION}/pi-core/issues
-Install: https://github.com/${REPO_ORGANIZATION}/pi-core/blob/main/INSTALL.md
-MOTDEOF
-else
-    # No namespace passed: better a banner with no links than links to someone
-    # else's issue tracker.
-    rm -f /usr/lib/motd.d/tracker.motd
-fi
+# Upstream's static snippet points at the Fedora CoreOS tracker. pi-core-motd
+# generates the whole banner at boot instead, deriving the namespace from the
+# booted image reference rather than from a build argument.
+rm -f /usr/lib/motd.d/tracker.motd
 # shellcheck disable=SC1091
 echo "::: $(. /usr/lib/os-release; echo "${PRETTY_NAME}")"
 

@@ -177,16 +177,38 @@ if [[ "$PN" == pi-core* ]]; then
 else
     fail "PRETTY_NAME is '$PN' — the SSH banner would announce uCore"
 fi
-if grep -q 'stixes/pi-core' /usr/lib/motd.d/tracker.motd 2>/dev/null; then
-    pass "motd points at this repo's issues"
-else
-    fail "motd still points at the Fedora CoreOS tracker"
-fi
 ID_=$(grep -E '^ID=' /usr/lib/os-release | cut -d= -f2 | tr -d '"')
 if [[ "$ID_" == "fedora" ]]; then
     pass "ID is still fedora (package tooling keys off it)"
 else
     fail "ID changed to '$ID_' — that breaks package tooling"
+fi
+
+head_ "login banner"
+check "generator present" test -x /usr/bin/pi-core-motd
+if grep -qE '^enable[[:space:]]+pi-core-motd\.service$' /usr/lib/systemd/system-preset/10-pi-core.preset; then
+    pass "enabled by preset"
+else
+    fail "pi-core-motd is not preset-enabled, so it will not run on the installed system"
+fi
+# Upstream's snippet prints the OS name too; both enabled prints it twice.
+if grep -qE '^disable[[:space:]]+console-login-helper-messages-gensnippet-os-release' /usr/lib/systemd/system-preset/10-pi-core.preset; then
+    pass "upstream os-release snippet stood down"
+else
+    fail "the os-release snippet is still enabled — the name would print twice"
+fi
+check "upstream tracker.motd removed" sh -c '! test -e /usr/lib/motd.d/tracker.motd'
+if grep -q 'pi-core/issues' /usr/bin/pi-core-motd; then
+    pass "banner carries an issues link"
+else
+    fail "the banner no longer links anywhere for reporting problems"
+fi
+# R15: a fork's banner must point at the fork. The namespace is read from the
+# booted image at runtime, so nothing here may name an owner.
+if grep -qE 'github\.com/[A-Za-z0-9_-]+/pi-core' /usr/bin/pi-core-motd; then
+    fail "pi-core-motd hardcodes an owner"
+else
+    pass "derives the namespace at runtime"
 fi
 
 head_ "hostname (Ignition used to write /etc/hostname)"

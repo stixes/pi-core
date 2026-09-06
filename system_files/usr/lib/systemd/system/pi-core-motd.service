@@ -1,0 +1,15 @@
+[Unit]
+Description=Generate the pi-core login banner
+# The banner carries the machine's addresses, so wait for them. Everything else
+# it prints is available earlier, but a banner that says "no address" on every
+# first login is worse than one that appears a few seconds later.
+After=network-online.target pi-core-firmware-check.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/pi-core-motd
+
+[Install]
+WantedBy=multi-user.target

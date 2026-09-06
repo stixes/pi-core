@@ -1,0 +1,62 @@
+#!/bin/bash
+# Write the pi-core login banner into /run/motd.d, where pam_motd renders it.
+#
+# This follows console-login-helper-messages' snippet pattern rather than
+# inventing one: oneshot service -> file in /run/motd.d -> pam_motd. Its own
+# os-release snippet is disabled by our preset, because everything it prints is
+# in the first line below.
+#
+# Nothing here is baked in at build time. The registry namespace comes from the
+# booted image reference, so a fork's banner points at the fork (requirements.md
+# R15) without needing a build argument.
+set -euo pipefail
+
+SNIPPET_DIR=/run/motd.d
+SNIPPET="${SNIPPET_DIR}/20_pi-core.motd"
+
+G=$'\e[1;32m'   # leaves
+R=$'\e[1;31m'   # berry
+D=$'\e[2m'      # labels
+N=$'\e[0m'
+
+# shellcheck disable=SC1091
+PRETTY="$(. /usr/lib/os-release && echo "${PRETTY_NAME:-pi-core}")"
+
+MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)"
+[[ -n "${MODEL}" ]] || MODEL="unknown model"
+
+# `bootc status` knows the image it booted; parse rather than hardcode.
+IMAGE="$(bootc status --format json 2>/dev/null \
+         | grep -oE '"image"[[:space:]]*:[[:space:]]*"[^"]+"' \
+         | grep -oE '[a-z0-9.-]+\.[a-z]+/[^"]+' | head -1 || true)"
+DIGEST="$(bootc status --format json 2>/dev/null \
+          | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
+# ghcr.io/<owner>/pi-core:stable -> <owner>. Empty if bootc could not say, in
+# which case the Issues line is omitted rather than pointing somewhere wrong.
+OWNER=""
+[[ -n "${IMAGE}" ]] && OWNER="$(cut -d/ -f2 <<<"${IMAGE}")"
+[[ -n "${IMAGE}" ]] || IMAGE="unknown"
+[[ -n "${DIGEST}" ]] || DIGEST="unknown"
+
+ADDRS="$(ip -4 -br addr show scope global 2>/dev/null \
+         | awk '{print $3}' | cut -d/ -f1 | paste -sd' ' - || true)"
+[[ -n "${ADDRS}" ]] || ADDRS="no address"
+
+# Written by pi-core-firmware-check.service, which already mounts the ESP at
+# boot. Reading its result beats mounting it a second time here.
+FW="$(cat /run/pi-core/firmware-status 2>/dev/null || echo "not checked")"
+
+mkdir -p "${SNIPPET_DIR}"
+cat > "${SNIPPET}" <<EOF
+
+   ${G}.~~.   .~~.${N}      ${PRETTY}
+  ${G}'. \\ ' ' / .'${N}     ${MODEL}
+   ${R}.~ .~~~..~.${N}
+  ${R}: .~.'~'.~. :${N}     ${D}Image${N}     ${IMAGE}
+ ${R}~ (   ) (   ) ~${N}    ${D}Booted${N}    ${DIGEST:0:19}
+${R}( : '~'.~.'~' : )${N}   ${D}Address${N}   ${ADDRS}
+ ${R}~ .~ (   ) ~. ~${N}    ${D}Firmware${N}  ${FW}
+  ${R}(  : '~' :  )${N}
+   ${R}'~ .~~~. ~'${N}$( [[ -n "${OWNER}" ]] && printf '      %sIssues%s    https://github.com/%s/pi-core/issues' "${D}" "${N}" "${OWNER}" )
+       ${R}'~'${N}
+EOF
