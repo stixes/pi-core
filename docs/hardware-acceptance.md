@@ -133,9 +133,10 @@ these as live questions rather than assumptions:
 
 ## C. Updating
 
-The first `bootc upgrade` stages a second deployment alongside the running one,
-and `/boot` is 384 MB with no way to enlarge it. A Pi failed here once, before
-the device trees were pruned to Broadcom.
+`bootc install` produces two partitions, an ESP and root, so `/boot` lives in
+the root filesystem and has the whole card to grow into. The 384 MB boot
+partition that once stranded an upgrade is gone with the installer model, and
+the device trees are pruned to Broadcom besides.
 
 - [ ] **C1** `sudo bootc upgrade` completes without "No space left on device".
 - [ ] **C2** `df -h /boot` after staging — record the figure; two deployments

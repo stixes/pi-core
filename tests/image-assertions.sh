@@ -5,6 +5,17 @@ source /tests/lib.sh
 
 FW=/usr/lib/pi-core/firmware
 
+# Whether *anything* preset-enables a unit. This, not an /etc symlink, is what
+# decides the installed system: the deployment's /etc is regenerated from
+# presets and 90-default.preset ends with `disable *`, so a unit nobody enables
+# by preset arrives disabled however it looked in the image.
+enabled_by_preset() {
+    local unit="$1" base="${1%.service}"
+    grep -rhE '^enable[[:space:]]+' /usr/lib/systemd/system-preset/*.preset 2>/dev/null \
+        | awk '{print $2}' \
+        | grep -qxE "${unit}|${base}\.\*|${base}\.service"
+}
+
 head_ "architecture"
 ARCH=$(rpm -E '%{_arch}')
 if [[ "$ARCH" == "aarch64" ]]; then pass "rpm arch is aarch64"; else fail "rpm arch is $ARCH, expected aarch64"; fi
@@ -69,7 +80,11 @@ if [[ -z "$BOOTCONTENT" ]]; then pass "/boot is empty"; else fail "/boot is not 
 
 head_ "our additions"
 check "pi-core-firmware is executable" test -x /usr/bin/pi-core-firmware
-check "sshd is enabled" test -L /etc/systemd/system/multi-user.target.wants/sshd.service
+if enabled_by_preset sshd.service; then
+    pass "sshd is enabled by preset"
+else
+    fail "nothing preset-enables sshd — 90-default.preset's 'disable *' would win"
+fi
 
 head_ "expected runtime"
 for b in bootc rpm-ostree docker podman tailscale; do
@@ -204,7 +219,11 @@ head_ "mDNS (INSTALL.md promises <host>.local resolves)"
 # strand every user who was told to ssh core@pi-core.local.
 check "avahi installed" rpm -q avahi
 check "nss-mdns installed" rpm -q nss-mdns
-check "avahi-daemon is enabled" test -L /etc/systemd/system/multi-user.target.wants/avahi-daemon.service
+if enabled_by_preset avahi-daemon.service; then
+    pass "avahi-daemon is enabled by preset"
+else
+    fail "nothing preset-enables avahi-daemon — .local would not resolve"
+fi
 if grep -qE '^hosts:.*mdns4' /etc/nsswitch.conf; then
     pass "nsswitch hosts line consults mdns4"
 else

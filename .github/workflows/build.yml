@@ -162,14 +162,14 @@ jobs:
           echo "REPO_ORGANIZATION=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
       - name: Install host prerequisites
-        # fetch-firmware.sh extracts the Fedora firmware RPMs on the host, and
-        # an Ubuntu runner has neither rpm2cpio (from `rpm`) nor cpio. rsync,
-        # xz and jq are usually present but are not guaranteed across runner
-        # image revisions, and this job is too slow to rediscover that.
+        # rsync, xz, jq and fdisk are usually present but are not guaranteed
+        # across runner image revisions, and this job is too slow to rediscover
+        # that. rpm and cpio are no longer needed: the firmware comes out of the
+        # image with `podman cp` rather than from extracted RPMs.
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            rpm cpio rsync xz-utils jq fdisk
+            rsync xz-utils jq fdisk
 
       - name: Show the tools this job depends on
         # One line of evidence beats another five-minute round trip.

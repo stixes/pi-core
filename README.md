@@ -3,10 +3,11 @@
 A custom [uCore](https://github.com/ublue-os/ucore) (Fedora CoreOS) bootc image
 for Raspberry Pi, for my personal homelab.
 
-> **Status: prototype — never booted on real hardware.** CI builds, signs and
-> publishes `ghcr.io/<owner>/pi-core:stable`, and `just test` passes, but no Pi
-> has yet passed [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
-> Treat every claim about hardware behaviour as untested.
+> **Status: runs on a Pi 4.** Boots to a login and a working network
+> unattended, grows the root filesystem to fill the card, resolves over mDNS,
+> and takes a `bootc upgrade` in about 20 seconds. Pi 5 is model-agnostic here
+> but untested, and `bootc rollback` has not been exercised — see
+> [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
 
 ## Targets
 
@@ -88,7 +89,6 @@ loop devices and mounting the image's EFI partition.
 | `Containerfile` | `FROM ucore-minimal:stable`, runs `build.sh` |
 | `build_files/build.sh` | Package installs + the firmware stash |
 | `system_files/` | Overlay copied to `/` (the `pi-core-firmware` helper and its unit) |
-| `scripts/fetch-firmware.sh` | Pull + extract the Pi firmware payload |
 | `scripts/build-image.sh` | `bootc install` + firmware -> the published `.img` |
 | `scripts/repo-owner.sh` | Derives the GHCR owner; never hardcoded |
 | `tests/` | static / image / supply-chain / hardware tiers |

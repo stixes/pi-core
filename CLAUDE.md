@@ -150,10 +150,26 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 
 ## Status
 
-Builds, lints clean, publishes and signs. **Never booted on real hardware** —
-the boot chain (EEPROM → U-Boot → GRUB → ostree) is entirely unexercised and no
-automated tier can validate it. `docs/hardware-acceptance.md` is the gate;
-until a run is recorded against it, treat every hardware claim as untested.
+Runs on a Raspberry Pi 4. A flashed card boots to a login and a working network
+unattended, `bootc upgrade` applies a new image in about 20 seconds and reboots
+into it, the root filesystem grows to fill the card, and `<hostname>.local`
+resolves. Builds, lints clean, publishes and signs.
 
-Say so plainly when reporting on this project. "Tests pass" is true and does
-not mean it works.
+Not yet proven, and worth saying so rather than implying otherwise:
+
+- **Pi 5.** Everything here is model-agnostic and the firmware ships for it,
+  but only a Pi 4 has run this.
+- **`bootc rollback`.** There has been one upgrade and the previous deployment
+  was pruned, so nothing has been rolled back yet.
+- **Unattended growth from a fresh card.** Proven by hand and proven to
+  no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
+  first boot since it was fixed.
+- **The image install is unsigned.** `build-image.sh` passes
+  `--target-no-signature-verification` because the container policy in the
+  image carries no entry for our cosign key. The image is verified out of band
+  instead. This is the largest outstanding gap.
+
+`docs/hardware-acceptance.md` is the checklist. Six behaviours that Fedora
+CoreOS provides during an Ignition firstboot had to be reimplemented for
+`bootc install`, each found by a failed boot: see `docs/design-decisions.md`
+before assuming anything in that area is incidental.

@@ -1,6 +1,6 @@
 # pi-core — see CLAUDE.md for the rules that constrain this project.
 
-set dotenv-load := true
+set dotenv-load
 set dotenv-filename := "pi-core.env"
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -24,10 +24,6 @@ inspect:
         echo "== os =="; . /etc/os-release && echo "$PRETTY_NAME"; \
         echo "== firmware stash =="; ls -1 /usr/lib/pi-core/firmware; \
         echo "== versions =="; cat /usr/lib/pi-core/firmware/.versions'
-
-# Download the Raspberry Pi firmware payload
-firmware:
-    ./scripts/fetch-firmware.sh
 
 # Build the flashable pi-core .img that gets published
 image:
@@ -63,7 +59,7 @@ test-supply-chain:
 
 # Tier 3: assertions against a booted Pi over SSH (read-only)
 test-hardware HOST:
-    ./tests/hardware.sh "{{HOST}}"
+    ./tests/hardware.sh "{{ HOST }}"
 
 # Push this branch and watch CI run the full build + image assertions (~90 s)
 ci:

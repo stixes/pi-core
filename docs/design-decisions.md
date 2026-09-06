@@ -29,17 +29,57 @@ Installing the image at build time removes that entire class of failure by
 construction, and with it the autorebase unit, the `chrony-wait` ordering, the
 Ignition config, and the two-reboot dance.
 
-It costs three things Ignition had been providing for free, all now build-time
-and all asserted in `tests/image-assertions.sh`:
+### What Ignition was quietly doing
 
-- the `core` user, declared in `sysusers.d` (a bare `/etc/passwd` entry trips
-  `bootc container lint`);
-- root filesystem growth, which Fedora CoreOS does in its initramfs but only on
-  an Ignition firstboot — `pi-core-growfs.service` does it instead;
-- `--target-no-signature-verification` at install time, because the image's own
-  bootc config sets `enforce-container-sigpolicy` and the policy it ships does
-  not yet carry our cosign key. Wiring that key in is the follow-up that lets
-  the flag go away.
+The image's `/usr/lib/bootc/install` config comes from Fedora CoreOS, and it is
+written on the assumption that an Ignition firstboot follows the install. It
+does not here, so six behaviours had to be reimplemented. Every one of them was
+found by a Pi that failed to boot, and none is incidental — each is asserted in
+`tests/image-assertions.sh` so removing it fails the build rather than a
+machine.
+
+- **`/var` is bound from the stateroot** by `/etc/fstab`. The deployment root
+  is composefs and immutable, so an unmounted `/var` sends every write to a
+  read-only filesystem: no `/var/home`, and NetworkManager cannot start.
+- **`/boot` is bound from `/sysroot/boot`** by the same file. That entry also
+  stops `coreos-boot-mount-generator` inventing a mount for `LABEL=boot`, which
+  cannot exist in bootc's two-partition layout — it hangs on the device
+  timeout and takes `local-fs.target` down with it.
+- **Units are enabled by a preset**, `10-pi-core.preset`. `systemctl enable`
+  writes under `/etc`, and the deployment's `/etc` is regenerated from presets
+  at install time, so a build-time enable is silently dropped. Zincati is
+  masked in `/usr` for the same reason.
+- **The hostname is set by a unit**, not shipped as `/etc/hostname`: podman
+  bind-mounts that path during a build and it never reaches the image. It
+  writes `/proc/sys/kernel/hostname` too, because systemd reads the file in
+  PID 1 long before the unit runs, and avahi would otherwise publish
+  `linux.local` for the whole first boot.
+- **The root filesystem is grown** by `pi-core-growfs.service`, through `/var`
+  rather than `/sysroot`: ostree's `prepare-root.conf` sets
+  `[sysroot] readonly = true`, so growing through `/sysroot` fails with
+  `XFS_IOC_FSGROWFSDATA … Read-only file system` while the partition resizes
+  anyway — which looks exactly like success.
+- **`bootuuid.cfg` is stamped onto the ESP** by `build-image.sh`. GRUB's stub
+  config looks for a `BOOT_UUID` and otherwise searches for a filesystem
+  labelled `boot`; Fedora CoreOS skips writing it because a CoreOS install
+  regenerates its UUIDs, and nothing labels a partition `boot` here. Without
+  it GRUB reaches a rescue prompt.
+
+Two further install-time details:
+
+- **`--filesystem xfs`** must be passed: the image declares mount specs but no
+  root filesystem type, because `coreos-installer` never needed bootc to know.
+- **`--target-no-signature-verification`**, because the image's bootc config
+  sets `enforce-container-sigpolicy` and the policy it ships carries no entry
+  for our cosign key. The image is verified out of band instead. Wiring the key
+  into `policy.json` is the outstanding follow-up, and it matters for
+  `bootc upgrade` on the device as much as for install.
+
+The ESP firmware is copied out of the image's own stash rather than downloaded
+again, so what `pi-core-firmware check` compares are two copies of the same
+thing. Downloading separately meant the ESP got stock Fedora files while the
+image carried customised ones, and the check reported drift on every fresh
+install by construction.
 
 Customisation still lives in `Containerfile` + `build_files/build.sh`, and the
 machine is still an ordinary bootc host that updates by pulling the same
