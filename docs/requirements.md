@@ -150,9 +150,20 @@ aarch64 only, asserted at build time.
 
 **Out of scope, deliberately**
 
-- **Pi 3, Zero 2 W** — 1 GB of RAM or less is below what Fedora CoreOS plus
-  containers wants. The firmware and device trees ship anyway, because one
-  package covers all models; that is not an endorsement.
+- **Pi 3, Zero 2 W** — they cannot boot this image at all, and RAM is the
+  lesser reason. The BCM2837 boot ROM reads **MBR only**; it scans the first
+  partition of an MBR table for `bootcode.bin`. `bootc install to-disk` writes
+  GPT, so the ROM finds nothing and stops before the firmware, U-Boot or HDMI
+  come up. Tested: a card that boots a Pi 4 put into a Pi 3B+ produced no
+  output and never reached the network. The Pi 4 and Pi 5 EEPROMs handle GPT,
+  which is why the same card works there.
+
+  Everything *inside* the image is fine for a Pi 3 — the `bcm2837` device
+  trees, `bootcode.bin`/`start.elf`, `arm_64bit=1`, the `[pi3]` config section
+  and U-Boot's BCM2837 support all ship, and the boot entry pins no device
+  tree. Supporting the model would mean a hybrid MBR on every built image; that
+  is partition-table surgery of the kind that has already destroyed one image
+  in this project, to reach a board with 1 GB of RAM. Deliberately not done.
 - **Pre-boot configuration** — see R2.
 - **Fleet management, provisioning servers, config management.** pi-core
   produces a host; what runs on it is not its concern.
