@@ -8,8 +8,13 @@ Scope is in `docs/requirements.md` §5; don't restate it here. The two model
 differences that bite in practice: Pi 5 is SD-only, and its serial console is
 the debug connector (`ttyAMA10`), not GPIO 14/15 (`ttyAMA0`).
 
-Published to `ghcr.io/<owner>/pi-core:stable` (public, cosign-signed), where
-`<owner>` is derived by `scripts/repo-owner.sh` — never hardcode it.
+Published to `ghcr.io/<owner>/pi-core` (public, cosign-signed), where `<owner>`
+is derived by `scripts/repo-owner.sh` — never hardcode it. Two tags:
+**`:stable`** is moved only by a `v*` release tag and is what flashed cards
+track and what the flashable image is built from; **`:testing`** is moved by
+every push to main and by the nightly rebuild. A commit on main must not be
+able to reach a device — that is the whole point of the split, and
+`tests/static.sh` guards it.
 
 ## Model
 

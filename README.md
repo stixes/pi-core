@@ -151,6 +151,31 @@ publishes and verifies its own image without edits. Override with
 You will want your own signing key: `cosign generate-key-pair`, commit the new
 `cosign.pub`, and add the private key as your fork's `SIGNING_SECRET`.
 
+## Streams
+
+| Tag | Moved by | For |
+|---|---|---|
+| `:stable` | a `v*` release tag, only | What flashed cards track, and what the flashable image is built from |
+| `:testing` | every push to main, and the nightly rebuild | Running ahead of a release |
+
+`:stable` is therefore always exactly some release. Nothing on main reaches a
+device until a tag moves it, which is what lets a release mature first.
+
+To follow `:testing` on a machine you already have:
+
+```bash
+sudo bootc switch ghcr.io/<owner>/pi-core:testing
+sudo systemctl reboot
+```
+
+`sudo bootc rollback` returns you to the deployment you were on, and switching
+back to `:stable` is the same command with the other tag. Signatures are
+verified either way — the policy is scoped to the repository, not to a tag.
+
+One consequence worth knowing: because only a tag moves `:stable`, upstream
+Fedora and uCore security fixes reach `:stable` when a release is cut, not
+nightly. `:testing` gets them the next morning.
+
 ## Provenance
 
 Written by Claude (Anthropic) under my direction, and verified by me.

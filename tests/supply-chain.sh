@@ -10,7 +10,10 @@ set -a; source ./pi-core.env; set +a
 
 REPO_ORGANIZATION="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}"
 REPO="${REPO_ORGANIZATION}/${IMAGE_NAME}"
-REMOTE="ghcr.io/${REPO}:${DEFAULT_TAG}"
+# CI verifies the tag the run just published; locally this checks :stable,
+# which is what a flashed card actually tracks.
+VERIFY_TAG="${VERIFY_TAG:-${DEFAULT_TAG}}"
+REMOTE="ghcr.io/${REPO}:${VERIFY_TAG}"
 
 head_ "signature"
 if [[ -r cosign.pub ]]; then
@@ -30,7 +33,7 @@ TOKEN=$(curl -fsS --max-time 20 "https://ghcr.io/token?scope=repository:${REPO}:
 CODE=$(curl -s -o /tmp/mf.json -w '%{http_code}' --max-time 20 \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.oci.image.index.v1+json" \
-    "https://ghcr.io/v2/${REPO}/manifests/${DEFAULT_TAG}")
+    "https://ghcr.io/v2/${REPO}/manifests/${VERIFY_TAG}")
 if [[ "$CODE" == "200" ]]; then pass "unauthenticated manifest fetch returns 200"; else fail "unauthenticated fetch returned HTTP $CODE (package private?)"; fi
 
 head_ "published image config"

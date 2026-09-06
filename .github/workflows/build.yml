@@ -51,6 +51,18 @@ jobs:
           # their own image.
           echo "REPO_ORGANIZATION=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
+      - name: Choose the published tag
+        # A version tag publishes :stable, which is what flashed cards track and
+        # what the flashable image is built from. Everything else -- main,
+        # the nightly rebuild, a manual run -- publishes :testing, so :stable
+        # stays exactly some release until a tag moves it deliberately.
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              echo "PUBLISH_TAG=${DEFAULT_TAG}" >> "$GITHUB_ENV"
+          else
+              echo "PUBLISH_TAG=${TESTING_TAG}" >> "$GITHUB_ENV"
+          fi
+
       - name: Install just
         uses: extractions/setup-just@v3
 
@@ -92,7 +104,7 @@ jobs:
         run: |
           podman push --digestfile=/tmp/digest \
             "${IMAGE_NAME}:${DEFAULT_TAG}" \
-            "${IMAGE_REGISTRY}/${IMAGE_NAME}:${DEFAULT_TAG}"
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}:${PUBLISH_TAG}"
           echo "digest=$(< /tmp/digest)" >> "$GITHUB_OUTPUT"
 
       - name: Install cosign
@@ -128,6 +140,8 @@ jobs:
         # Proves the signature actually verifies and that the package can be
         # pulled with no credentials, which is what the Pi does on first boot.
         run: just test-supply-chain
+        env:
+          VERIFY_TAG: ${{ env.PUBLISH_TAG }}
 
   release-image:
     name: Publish flashable image
@@ -180,7 +194,11 @@ jobs:
           done
 
       - name: Build the flashable image
-        run: ./scripts/build-image.sh
+        # From the tag this run published, so a manual publish_image run makes
+        # an image of what it just built rather than of the last release.
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then TAG="${DEFAULT_TAG}"; else TAG="${TESTING_TAG}"; fi
+          IMAGE="ghcr.io/${REPO_ORGANIZATION}/${IMAGE_NAME}:${TAG}" ./scripts/build-image.sh
 
       - name: Checksum
         run: |

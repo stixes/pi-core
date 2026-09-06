@@ -93,6 +93,24 @@ else
     fail "REPO_ORGANIZATION is not passed to the build — the policy scope would be empty"
 fi
 
+head_ "release stream (only a tag moves :stable)"
+# :stable is what flashed cards track and what the flashable image is built
+# from. If main started publishing it again, every commit would reach every
+# device immediately, which is the thing the split exists to prevent.
+# shellcheck disable=SC2016  # grepping for the literal ${...} text, not expanding it
+if grep -q 'PUBLISH_TAG=${DEFAULT_TAG}' .github/workflows/build.yml \
+   && grep -q 'PUBLISH_TAG=${TESTING_TAG}' .github/workflows/build.yml; then
+    pass "the workflow chooses between :stable and :testing"
+else
+    fail "the workflow no longer distinguishes the two tags"
+fi
+# shellcheck disable=SC2016
+if grep -q 'IMAGE_REGISTRY}/${IMAGE_NAME}:${PUBLISH_TAG}' .github/workflows/build.yml; then
+    pass "it pushes the chosen tag, not a fixed one"
+else
+    fail "the push target is not PUBLISH_TAG — main could be publishing :stable"
+fi
+
 head_ "first boot needs no network (requirements.md R3)"
 # The installer model pulled a container on first boot and made the network,
 # the clock and a registry into boot dependencies. Each of those failed on real
