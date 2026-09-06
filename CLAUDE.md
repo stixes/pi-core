@@ -154,15 +154,14 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 
 Runs on a Raspberry Pi 4. A flashed card boots to a login and a working network
 unattended, `bootc upgrade` applies a new image in about 20 seconds and reboots
-into it, the root filesystem grows to fill the card, and `<hostname>.local`
-resolves. Builds, lints clean, publishes and signs.
+into it, `bootc rollback` returns to the previous deployment and back again,
+the root filesystem grows to fill the card, `<hostname>.local` resolves, and
+upgrades verify our cosign signature. Builds, lints clean, publishes and signs.
 
 Not yet proven, and worth saying so rather than implying otherwise:
 
 - **Pi 5.** Everything here is model-agnostic and the firmware ships for it,
   but only a Pi 4 has run this.
-- **`bootc rollback`.** There has been one upgrade and the previous deployment
-  was pruned, so nothing has been rolled back yet.
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
   first boot since it was fixed.

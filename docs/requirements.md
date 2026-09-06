@@ -74,7 +74,7 @@ Each has an ID so tests and commit messages can name it.
 - **R10 — Updates are atomic and reversible.** `bootc upgrade` stages a new
   deployment; the previous one remains bootable. An update must never leave a
   half-applied system.
-  *Verified: acceptance §C.*
+  *Verified: acceptance §C; rollback exercised on a Pi 4 in both directions.*
 - **R11 — An update must not be able to exhaust `/boot`.** Staging a second
   deployment alongside the first is the normal case, not an edge case.
   *Verified: `tests/image-assertions.sh` bounds the device-tree payload.*
@@ -172,7 +172,6 @@ two should not drift apart.
   that *delivers* a policy is evaluated under the previous one. Nothing can
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
-- **R10's rollback half is unexercised.**
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
   two-partition layout, and on a `coreos-installer` install the same entry
