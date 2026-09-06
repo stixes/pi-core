@@ -47,14 +47,18 @@ push:
 # on a native arm64 runner, in well under a minute.
 
 # The fast local gate (~5 s, no image build) — run this while editing
-test: test-static
+test: test-static test-provision
 
 # Everything runnable locally; needs `just build` first, so expect a wait on x86
-test-all: test-static test-image
+test-all: test-static test-provision test-image
 
 # Tier 0: linting, config validation, env-file format (seconds)
 test-static:
     ./tests/static.sh
+
+# Tier 0: the headless provisioner's parsing, in --dry-run. No image, no root.
+test-provision:
+    ./tests/provision.sh
 
 # Tier 1: assertions against the locally built image
 test-image:

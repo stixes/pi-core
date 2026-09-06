@@ -1,0 +1,257 @@
+#!/bin/bash
+# pi-core-provision — apply optional headless setup from pi-core.conf on the
+# card's FAT partition (requirements.md R20).
+#
+# A machine destined for a shelf may never see a console, and reaching it as
+# core/core means discovering its address and typing a password into a
+# production host. This reads a plain file any laptop can edit after flashing.
+#
+# The bounding requirement is R2: nothing may *depend* on this. No file, an
+# empty file, or a file of comments must all leave the machine exactly as it
+# would have been. Every key is optional, an unknown key is reported and
+# skipped, and a key that fails costs that setting and nothing else.
+#
+# The file is data, never code: it is parsed against the whitelist below and
+# never sourced, so a value cannot execute. tests/provision.sh proves it.
+#
+# Runs once, guarded by a sentinel. Safe to re-run with --force.
+set -uo pipefail
+
+ESP_LABEL=EFI-SYSTEM
+CONF_NAME=pi-core.conf
+SENTINEL=/var/lib/pi-core/provisioned
+CORE_USER=core
+
+# --- the settings table ------------------------------------------------------
+# To add a setting: name it here and write apply_<KEY>. Nothing else changes.
+# Order is apply order, so a key may rely on an earlier one having run.
+SETTINGS=(
+    PI_HOSTNAME
+    PI_SSH_KEY
+    PI_PASSWORD_HASH
+    PI_TIMEZONE
+    PI_WIFI_SSID
+    PI_WIFI_PSK
+    PI_TAILSCALE_AUTHKEY
+    PI_WIPE_SECRETS
+)
+# Values that are credentials. Blanked from the card once applied, because the
+# card outlives the install and is readable by anyone who picks it up.
+SECRETS=(PI_PASSWORD_HASH PI_WIFI_PSK PI_TAILSCALE_AUTHKEY)
+
+# Test hook: point at a directory instead of mounting the ESP.
+ESP_DIR_OVERRIDE="${PI_CORE_ESP_DIR:-}"
+
+log()  { echo "pi-core-provision: $*"; }
+warn() { echo "pi-core-provision: WARNING: $*" >&2; }
+
+FORCE=0
+DRY=0
+for arg in "$@"; do
+    case "$arg" in
+        --force)   FORCE=1 ;;
+        --dry-run) DRY=1 ;;
+        -h|--help) echo "usage: pi-core-provision [--dry-run] [--force]"; exit 0 ;;
+        *)         echo "unknown argument: $arg" >&2; exit 2 ;;
+    esac
+done
+
+# In dry-run nothing is mutated: report the action and carry on.
+run() {
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: $*"
+        return 0
+    fi
+    "$@"
+}
+
+if [[ -e "${SENTINEL}" && "${FORCE}" -eq 0 && "${DRY}" -eq 0 ]]; then
+    log "already provisioned (${SENTINEL}); nothing to do"
+    exit 0
+fi
+
+# --- locate the config -------------------------------------------------------
+MNT=""
+CLEANUP=0
+if [[ -n "${ESP_DIR_OVERRIDE}" ]]; then
+    MNT="${ESP_DIR_OVERRIDE}"
+else
+    DEV=$(blkid -L "${ESP_LABEL}" 2>/dev/null || true)
+    if [[ -z "${DEV}" ]]; then
+        log "no ${ESP_LABEL} partition; nothing to do"
+        exit 0
+    fi
+    MNT=$(mktemp -d /tmp/pi-core-esp.XXXXXX)
+    if ! mount "${DEV}" "${MNT}" 2>/dev/null; then
+        warn "could not mount ${DEV}"; rmdir "${MNT}"; exit 0
+    fi
+    CLEANUP=1
+fi
+finish() {
+    if [[ "${CLEANUP}" -eq 1 ]]; then
+        umount "${MNT}" 2>/dev/null || true
+        rmdir "${MNT}" 2>/dev/null || true
+    fi
+}
+trap finish EXIT
+
+CONF="${MNT}/${CONF_NAME}"
+if [[ ! -r "${CONF}" ]]; then
+    log "no ${CONF_NAME} on the ${ESP_LABEL} partition; nothing to do"
+    exit 0
+fi
+
+# --- parse (whitelist; never source an editable file) ------------------------
+for k in "${SETTINGS[@]}"; do printf -v "$k" '%s' ""; done
+PI_WIPE_SECRETS="1"
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"                      # tolerate CRLF from a Windows edit
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" != *=* ]] && { warn "ignoring malformed line: $line"; continue; }
+    key="${line%%=*}"; val="${line#*=}"
+    key="$(echo "$key" | tr -d '[:space:]')"
+    val="${val#"${val%%[![:space:]]*}"}"      # ltrim
+    val="${val%"${val##*[![:space:]]}"}"      # rtrim
+    # The key is matched against the whitelist *before* it is used as a
+    # variable name, so printf -v cannot be steered by the file.
+    case " ${SETTINGS[*]} " in
+        *" ${key} "*) printf -v "$key" '%s' "$val" ;;
+        *)            warn "unknown key '${key}' (ignored)" ;;
+    esac
+done < "${CONF}"
+
+# --- handlers ----------------------------------------------------------------
+APPLIED=0
+
+apply_PI_HOSTNAME() {
+    if run hostnamectl set-hostname "$1" 2>/dev/null; then
+        log "hostname set to $1"; APPLIED=1
+    else
+        warn "failed to set hostname"
+    fi
+}
+
+apply_PI_SSH_KEY() {
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: add SSH key for ${CORE_USER} (${1:0:24}...)"; APPLIED=1; return
+    fi
+    local home ak
+    home=$(getent passwd "${CORE_USER}" | cut -d: -f6)
+    if [[ -z "${home}" ]]; then
+        warn "user ${CORE_USER} not found; skipping SSH key"; return
+    fi
+    install -d -m 0700 -o "${CORE_USER}" -g "${CORE_USER}" "${home}/.ssh"
+    ak="${home}/.ssh/authorized_keys"
+    if grep -qxF "$1" "${ak}" 2>/dev/null; then
+        log "SSH key already present"
+    else
+        echo "$1" >> "${ak}"
+        log "added an SSH key for ${CORE_USER}"
+    fi
+    chown "${CORE_USER}:${CORE_USER}" "${ak}"; chmod 0600 "${ak}"
+    # authorized_keys in a home directory needs its own SELinux type, and the
+    # file is created here rather than by a login, so nothing else relabels it.
+    restorecon -F "${ak}" 2>/dev/null || true
+    APPLIED=1
+}
+
+apply_PI_PASSWORD_HASH() {
+    if [[ "$1" != \$* ]]; then
+        warn "PI_PASSWORD_HASH does not look like a hash (must start with \$) — refusing to set a plaintext password"
+    elif [[ "${DRY}" -eq 1 ]]; then
+        log "would: set console password for ${CORE_USER}"; APPLIED=1
+    elif echo "${CORE_USER}:$1" | chpasswd -e 2>/dev/null; then
+        log "console password set for ${CORE_USER}"; APPLIED=1
+    else
+        warn "failed to set the password"
+    fi
+}
+
+apply_PI_TIMEZONE() {
+    if run timedatectl set-timezone "$1" 2>/dev/null; then
+        log "timezone set to $1"; APPLIED=1
+    else
+        warn "invalid timezone '$1'"
+    fi
+}
+
+# Wireless is the setting most likely to be the *only* way in, so it is also
+# the one that must fail loudest. A wrong PSK leaves the wired path untouched.
+apply_PI_WIFI_SSID() {
+    local iface
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: add a wifi connection for SSID '$1'"; APPLIED=1; return
+    fi
+    if ! command -v nmcli >/dev/null; then
+        warn "nmcli not present; skipping wifi"; return
+    fi
+    iface=$(nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="wifi"{print $1; exit}')
+    if [[ -z "${iface}" ]]; then
+        warn "no wifi interface found; skipping wifi"; return
+    fi
+    rfkill unblock wifi 2>/dev/null || true
+    local args=(connection add type wifi con-name pi-core-wifi ifname "${iface}"
+                ssid "$1" connection.autoconnect yes)
+    if [[ -n "${PI_WIFI_PSK}" ]]; then
+        args+=(wifi-sec.key-mgmt wpa-psk wifi-sec.psk "${PI_WIFI_PSK}")
+    fi
+    if nmcli "${args[@]}" >/dev/null 2>&1; then
+        nmcli connection up pi-core-wifi >/dev/null 2>&1 \
+            || warn "wifi profile created but did not connect (wrong PSK, or out of range)"
+        log "wifi configured for SSID '$1'"; APPLIED=1
+    else
+        warn "could not create the wifi connection"
+    fi
+}
+
+# Consumed by apply_PI_WIFI_SSID; declared so the key is not "unknown".
+apply_PI_WIFI_PSK() { :; }
+
+apply_PI_TAILSCALE_AUTHKEY() {
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: join the tailnet with the supplied auth key"; APPLIED=1; return
+    fi
+    if ! command -v tailscale >/dev/null; then
+        warn "tailscale not installed; skipping"; return
+    fi
+    systemctl enable --now tailscaled 2>/dev/null || true
+    if tailscale up --authkey="$1" --hostname="${PI_HOSTNAME:-$(hostname)}" 2>/dev/null; then
+        log "joined the tailnet"; APPLIED=1
+    else
+        warn "tailscale up failed (key expired or already used?)"
+    fi
+}
+
+# --- apply -------------------------------------------------------------------
+for key in "${SETTINGS[@]}"; do
+    [[ "${key}" == PI_WIPE_SECRETS ]] && continue
+    [[ -n "${!key}" ]] || continue
+    if declare -F "apply_${key}" >/dev/null; then
+        "apply_${key}" "${!key}"
+    else
+        warn "no handler for ${key} (ignored)"
+    fi
+done
+
+# --- wipe secrets ------------------------------------------------------------
+if [[ "${PI_WIPE_SECRETS}" == "1" ]]; then
+    SECRET_RE=$(IFS='|'; echo "${SECRETS[*]}")
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: blank secret values in ${CONF_NAME}"
+    elif [[ -w "${CONF}" ]]; then
+        TMP="${CONF}.tmp"
+        sed -E "s/^([[:space:]]*(${SECRET_RE})[[:space:]]*=).*/\\1/" \
+            "${CONF}" > "${TMP}" && mv "${TMP}" "${CONF}"
+        sync
+        log "blanked secret values in ${CONF_NAME}"
+    else
+        warn "cannot write ${CONF_NAME}; secrets left in place"
+    fi
+fi
+
+if [[ "${DRY}" -eq 0 ]]; then
+    mkdir -p "$(dirname "${SENTINEL}")"
+    date -Is > "${SENTINEL}" 2>/dev/null || touch "${SENTINEL}"
+fi
+log "done (applied=${APPLIED})"

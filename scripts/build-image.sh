@@ -107,6 +107,11 @@ log "extracting the Pi firmware from ${IMAGE}"
 rm -rf build/rpi-firmware
 FWCID="$(sudo podman create --arch arm64 "${IMAGE}" /bin/true)"
 sudo podman cp "${FWCID}:/usr/lib/pi-core/firmware" build/rpi-firmware
+# The headless setup template, so a freshly flashed card is editable in a
+# laptop without anyone having to find this repo (requirements.md R20). Every
+# value in it is blank, so a card nobody touches behaves exactly as before.
+rm -f build/pi-core.conf
+sudo podman cp "${FWCID}:/usr/share/pi-core/pi-core.conf.example" build/pi-core.conf
 sudo podman rm "${FWCID}" >/dev/null
 [[ -f build/rpi-firmware/rpi-u-boot.bin ]] || die "no rpi-u-boot.bin in the image's firmware stash"
 
@@ -172,6 +177,8 @@ printf 'set BOOT_UUID=%s\n' "${ROOT_UUID}" | sudo tee "${MNT}/EFI/fedora/bootuui
 log "copying Pi firmware onto the ESP"
 # --ignore-existing: never clobber the bootloader bootc just installed.
 sudo rsync -ah --ignore-existing --chown 0:0 build/rpi-firmware/ "${MNT}/"
+log "placing the headless setup template on the ESP"
+sudo cp build/pi-core.conf "${MNT}/pi-core.conf"
 grep -q "${ROOT_UUID}" "${MNT}/EFI/fedora/bootuuid.cfg" \
     || die "bootuuid.cfg does not carry the root UUID — GRUB would not find /boot"
 sudo sync

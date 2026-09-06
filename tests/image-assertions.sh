@@ -326,6 +326,25 @@ else
     fail "pi-core-motd does not read .status.booted — it may report the staged image as running"
 fi
 
+head_ "headless setup (requirements.md R20)"
+check "the provisioner ships" test -x /usr/bin/pi-core-provision
+check "the template ships"    test -r /usr/share/pi-core/pi-core.conf.example
+if grep -qE '^enable[[:space:]]+pi-core-provision\.service$' /usr/lib/systemd/system-preset/10-pi-core.preset; then
+    pass "the provisioner is preset-enabled"
+else
+    fail "pi-core-provision is not preset-enabled, so it will never run on the installed system"
+fi
+# R2 bounds R20: the template that ships on every card must set nothing. If a
+# value ever appears here, a machine nobody configured stops being a machine
+# nobody configured.
+SETVALS=$(grep -E '^[A-Z_]+=.+$' /usr/share/pi-core/pi-core.conf.example \
+          | grep -v '^PI_WIPE_SECRETS=' || true)
+if [[ -n "${SETVALS}" ]]; then
+    fail "the shipped template sets a value, so a flashed card is configured by default: ${SETVALS}"
+else
+    pass "every value in the shipped template is blank"
+fi
+
 head_ "version"
 # `bootc status` reports the image digest, which says nothing to a human about
 # which build they are on.

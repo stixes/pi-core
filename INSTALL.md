@@ -74,6 +74,55 @@ separate boot partition instead, and that fstab entry is exactly what stops
 Fedora CoreOS mounting it — so a rebased machine would likely come up with an
 empty `/boot`. Flash the image.
 
+## 1a. Optional: set it up before the first boot
+
+Skip this whole section if you have a monitor, or if you are happy to find the
+machine on the network and log in as `core` / `core`. **Everything here is
+optional and the card works untouched.**
+
+For a machine that will live on a shelf, put the card back in your laptop after
+flashing. It mounts a small FAT partition called **EFI-SYSTEM** — the only one
+Windows and macOS will show you — with a `pi-core.conf` on it. Every value in
+it is blank. Fill in what you want and eject:
+
+```ini
+PI_HOSTNAME=kitchen-pi
+PI_SSH_KEY=ssh-ed25519 AAAAC3Nza... you@laptop
+PI_TIMEZONE=Europe/Copenhagen
+PI_WIFI_SSID=my-network
+PI_WIFI_PSK=the-password
+```
+
+It is read once, on first boot, and then marked done. Editing it later does
+nothing; configure a running machine with `hostnamectl`, `nmcli` and friends
+instead.
+
+| Key | Effect |
+|---|---|
+| `PI_HOSTNAME` | Sets the hostname, so `<name>.local` resolves instead of `pi-core.local` |
+| `PI_SSH_KEY` | One public key, authorised for `core`. The whole line from your `.pub` file |
+| `PI_PASSWORD_HASH` | Replaces the `core` password. A **hash**, from `mkpasswd -m yescrypt` — a plaintext value is refused, not silently set |
+| `PI_TIMEZONE` | IANA name, e.g. `Europe/Copenhagen` |
+| `PI_WIFI_SSID`, `PI_WIFI_PSK` | Joins a wireless network. Wired is more predictable for anything that matters |
+| `PI_TAILSCALE_AUTHKEY` | Joins a tailnet unattended. Use a single-use key |
+| `PI_WIPE_SECRETS` | `1` by default: blanks the password, PSK and auth key from the card once applied |
+
+Notes worth reading before you rely on it:
+
+- **A key that fails costs that key, not the boot.** A bad timezone or a wrong
+  Wi-Fi password leaves the rest applied and the machine reachable by the other
+  routes.
+- **The file is never executed.** It is parsed against a fixed list of keys, so
+  a value cannot run a command. Unknown keys are logged and ignored.
+- **Secrets are blanked from the card after use**, because the card outlives
+  the install and anyone who picks it up can read it. The wipe cannot help if
+  you keep a copy elsewhere.
+- **Static IP addresses are not settable here on purpose.** A wrong prefix or
+  gateway strands a headless machine with no way back in; a DHCP reservation on
+  your router does the same job and fails safely. Ask if you want it anyway.
+- To see what it *would* do without doing it, on a running machine:
+  `sudo pi-core-provision --dry-run`.
+
 ## 2. First boot
 
 Put the card in the Pi and power on.

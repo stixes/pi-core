@@ -9,6 +9,7 @@
 # Sorts before 20-fcos.preset so the zincati line below wins: first match wins.
 enable pi-core-firmware-check.service
 enable pi-core-hostname.service
+enable pi-core-provision.service
 enable pi-core-motd.service
 enable pi-core-motd.path
 enable pi-core-growfs.service

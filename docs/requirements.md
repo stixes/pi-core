@@ -39,10 +39,12 @@ Each has an ID so tests and commit messages can name it.
 - **R1 — One install path.** Download the published image, write it to a card,
   boot. No second artifact, no installer step, no build required.
   *Verified: `tests/static.sh` asserts the image build uses `bootc install`.*
-- **R2 — No pre-boot configuration.** Nothing to edit on the card, no config
-  file, no per-device values baked at build time. An image handed to a stranger
-  cannot depend on them, and two mechanisms that tried were removed.
-  *Verified: no config parser exists; the Ignition path is gone.*
+- **R2 — Nothing may *depend* on pre-boot configuration.** A card flashed and
+  booted with nothing edited reaches a login and a working network. No
+  per-device values are baked at build time, and no setting may be one whose
+  absence breaks the boot. Optional pre-boot configuration is allowed, and
+  specified in R20; this requirement is what bounds it.
+  *Verified: `tests/provision.sh` — an absent or empty config changes nothing.*
 - **R3 — First boot must not need the network, a clock or a registry.** The
   image *is* the system, not an installer for it. A Pi has no battery-backed
   clock and may be offline; neither may prevent it reaching a login.
@@ -52,6 +54,32 @@ Each has an ID so tests and commit messages can name it.
   fixed size and cards are not.
   *Verified: `tests/image-assertions.sh` (unit + preset); acceptance §B4.*
 - **R5 — Any card of 8 GB or larger works**, on the models in §5.
+
+- **R20 — Optional headless setup from a file on the card.** A machine destined
+  for a rack or a shelf may never see a console, and reaching it as `core` /
+  `core` over SSH means first discovering its address and then typing a
+  password into a production host. So the flashed card carries an editable
+  file — on the FAT partition any laptop can mount — that can set the hostname,
+  authorise an SSH key, set the console password, the timezone, and join a
+  wireless network. It is read once on first boot.
+
+  The constraints are what make this compatible with R2, and they are the
+  requirement as much as the feature is:
+
+  - **Absent, empty or comment-only is the supported case.** The behaviour with
+    no file is byte-for-byte today's behaviour.
+  - **Every key is optional**, and an unknown or malformed one is reported and
+    skipped, never fatal.
+  - **The file is data, never code.** It is parsed against a key whitelist and
+    never sourced, so a value cannot execute.
+  - **A failing key must not fail the boot.** Each setting is applied
+    independently; one bad value costs that setting, not the machine.
+  - **Secrets do not stay on the card.** Values that are credentials are
+    blanked after they are applied.
+
+  *Verified: `tests/provision.sh` (tier 0, including that a value containing
+  `$(...)` is not executed); `tests/image-assertions.sh` for shipping and
+  enablement.*
 
 ### Reachability
 

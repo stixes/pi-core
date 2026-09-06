@@ -210,11 +210,17 @@ freeze what the nightly rebuild exists to pick up.
   warns. Installing firmware packages creates `/boot/efi`; remove the directory,
   not just its contents.
 - **There is one install path.** Download the published image, flash, boot, log
-  in as `core`, configure in place. No build-time settings, nothing to edit on
-  the card, no per-device state in this repo. Three mechanisms that once did
-  this — `pi-core.conf` + `pi-core-provision`, per-device Ignition rendering,
-  and the first-boot rebase — were deleted, not deprecated. Do not reintroduce
-  pre-boot configuration; an image handed to a stranger cannot depend on it.
+  in as `core`, configure in place. No build-time settings and no per-device
+  state in this repo. Per-device Ignition rendering and the first-boot rebase
+  were deleted, not deprecated, and stay dead.
+
+  `pi-core.conf` + `pi-core-provision` came back deliberately (R20), because a
+  machine going into a rack may never see a console. It is bounded by R2 and
+  that bound is the whole design: **no file, an empty file, or a file of
+  comments must leave the machine exactly as it would have been**, the shipped
+  template has every value blank, and a key that fails costs that setting
+  rather than the boot. If a change would make the image *depend* on the file,
+  it is the wrong change.
 - **Enablement applies at install, not at upgrade.** A preset is evaluated when
   the deployment's `/etc` is generated, so a unit added in a new image arrives
   *disabled* on a machine that upgrades into it, and a changed `WantedBy=` does

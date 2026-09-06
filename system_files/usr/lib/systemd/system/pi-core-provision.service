@@ -1,0 +1,24 @@
+[Unit]
+Description=pi-core: apply optional headless setup from pi-core.conf on the boot partition
+Documentation=file:///usr/share/pi-core/pi-core.conf.example
+# NetworkManager must be up for the wifi key to have anything to talk to, and
+# this has to run before anything waits on the network -- wireless may be the
+# only way this machine is ever reachable.
+After=local-fs.target NetworkManager.service pi-core-hostname.service
+Wants=NetworkManager.service
+Before=network-online.target multi-user.target
+# Once. The sentinel is in /var so it survives an upgrade, and the condition is
+# here as well as in the script so a provisioned machine costs nothing at boot.
+ConditionPathExists=!/var/lib/pi-core/provisioned
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# To the console too: if this is the run that sets up the only network path,
+# its failure is something you want on an attached monitor, not just in a
+# journal you cannot reach.
+StandardOutput=journal+console
+ExecStart=/usr/bin/pi-core-provision
+
+[Install]
+WantedBy=multi-user.target

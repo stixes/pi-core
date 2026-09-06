@@ -1,0 +1,46 @@
+# pi-core headless setup — entirely optional.
+#
+# Copy this file to the FAT partition of a freshly flashed card (the one your
+# laptop mounts automatically, labelled EFI-SYSTEM), rename it to
+# `pi-core.conf`, and edit it there. It is read once, on first boot, and then
+# marked done.
+#
+# Deleting it, leaving it empty, or leaving every key blank is fully supported
+# and changes nothing: the machine comes up exactly as it would have, with
+# core / core on the console and SSH. Nothing here is required.
+#
+# Format: KEY=value, one per line. No quotes — the rest of the line is the
+# value. Lines starting with # are ignored. An unknown key is reported in the
+# journal and skipped. A key that fails costs that setting, not the boot.
+
+# Hostname to set on first boot. Also the name used on the tailnet below.
+PI_HOSTNAME=
+
+# SSH public key authorised for the 'core' user. One key, the whole line,
+# exactly as it appears in your id_ed25519.pub.
+PI_SSH_KEY=
+
+# Console and SSH password for 'core', as a HASH — never a plaintext password.
+# A value that does not start with $ is refused rather than silently set.
+#   mkpasswd -m yescrypt
+# Leave blank to keep the default password. That is a real choice, not an
+# oversight: see INSTALL.md on what core/core means for your network.
+PI_PASSWORD_HASH=
+
+# IANA timezone, e.g. Europe/Copenhagen. Blank leaves the machine on UTC.
+PI_TIMEZONE=
+
+# Wireless. Leave blank on a wired machine.
+# The Pi's radio is disabled until a country is known, so 5 GHz networks may
+# not appear until the access point advertises one. Wired is more predictable
+# for anything that matters.
+PI_WIFI_SSID=
+PI_WIFI_PSK=
+
+# Tailscale auth key, if this machine should join a tailnet unattended.
+# Generate a single-use key; it is consumed on first boot.
+PI_TAILSCALE_AUTHKEY=
+
+# Blank out the secret values above once they have been applied, so the card
+# does not carry them around afterwards. Set to 0 to keep them.
+PI_WIPE_SECRETS=1
