@@ -31,8 +31,11 @@ head_ "connectivity"
 if rq true; then pass "ssh to ${TARGET}"; else fail "cannot ssh to ${TARGET}"; summary "tier 3"; exit 1; fi
 
 head_ "identity"
-MODEL=$(rc "grep -m1 ^Model /proc/cpuinfo | cut -d: -f2- | xargs" || true)
-REV=$(rc "grep -m1 ^Revision /proc/cpuinfo | awk '{print \$3}'" || true)
+# /proc/cpuinfo carries Model/Revision only on 32-bit Raspberry Pi OS; on
+# Fedora aarch64 those lines do not exist and both read as empty. The device
+# tree is the source that works, and is what pi-core-motd already uses.
+MODEL=$(rc "tr -d '\\0' < /proc/device-tree/model" || true)
+REV=$(rc "od -An -tx1 /proc/device-tree/system/linux,revision 2>/dev/null | tr -d ' \\n' | sed 's/^0*//'" || true)
 KERNEL=$(rc "uname -r" || true)
 echo "      model:    ${MODEL:-unknown}"
 echo "      revision: ${REV:-unknown}"
@@ -121,6 +124,35 @@ if rq 'systemctl is-failed --quiet rpm-ostreed-automatic.service'; then
     fail "rpm-ostreed-automatic has failed — unattended updates are not running"
 else
     pass "rpm-ostreed-automatic is not in a failed state"
+fi
+
+head_ "root growth (R4)"
+
+if rq 'systemctl is-failed --quiet pi-core-growfs.service'; then
+    fail "pi-core-growfs.service failed — the root did not grow"
+else
+    pass "pi-core-growfs.service is not in a failed state"
+fi
+
+if rq 'test -e /var/lib/pi-core/growfs.done'; then
+    pass "growfs marker present — the unit verified its own result"
+else
+    fail "no /var/lib/pi-core/growfs.done — growth did not complete, and it will retry"
+fi
+
+# Measured here rather than inferred from the marker. The failure that shipped
+# once was a partition that grew while the filesystem did not, on a machine
+# reporting no errors at all; only comparing the two sizes catches that.
+# SC2016: single quotes are correct — this expands on the Pi, not here.
+# shellcheck disable=SC2016
+SIZES="$(rc 'SRC=$(findmnt -no SOURCE /sysroot); FSB=$(stat -f -c "%b" /sysroot); BS=$(stat -f -c "%S" /sysroot); echo $((FSB*BS)) $(lsblk -bno SIZE "$SRC" | head -1)')"
+read -r FS_B PART_B <<<"${SIZES}"
+if [[ -z "${PART_B:-}" || "${PART_B}" -eq 0 ]]; then
+    fail "could not read the root partition size"
+elif (( FS_B * 100 >= PART_B * 95 )); then
+    pass "root filesystem fills the partition ($(( FS_B / 1024 / 1024 )) MiB of $(( PART_B / 1024 / 1024 )) MiB)"
+else
+    fail "root filesystem is $(( FS_B / 1024 / 1024 )) MiB of a $(( PART_B / 1024 / 1024 )) MiB partition"
 fi
 
 head_ "observations to record"

@@ -75,7 +75,7 @@ Record the baseline before powering on:
 
 | Field | How |
 |---|---|
-| Pi model + board revision | printed on the board / `cat /proc/cpuinfo` later |
+| Pi model + board revision | printed on the board / `tr -d '\0' < /proc/device-tree/model` later |
 | Which UART was used | debug connector (Pi 5) or GPIO header (Pi 4) |
 | Boot medium | SD card or USB SSD, make and size |
 | EEPROM version | `vcgencmd bootloader_version`, or the date shown by the bootloader update |
@@ -121,7 +121,9 @@ these as live questions rather than assumptions:
 - [ ] **B3** `systemctl is-enabled zincati.service` reports `masked`.
 - [ ] **B4** The root filesystem filled the card — `df -h /sysroot` should show
       the card's size, not the image's. If not:
-      `journalctl -u pi-core-growfs.service`.
+      `journalctl -u pi-core-growfs.service`. Part 2 measures this again
+      against the partition size; the eye check here is what catches it before
+      SSH exists.
 - [ ] **B5** `avahi-daemon` is running and `pi-core.local` resolves from
       another machine on the same network. Record whether it needed the DHCP
       address instead — mDNS is best-effort and depends on the network.
