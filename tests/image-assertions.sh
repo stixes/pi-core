@@ -276,28 +276,32 @@ else
 fi
 
 head_ "staged-update notice"
-# motd.d is generated at boot and a deployment is staged later, so this has to
-# be evaluated at login -- the same split console-login-helper-messages uses.
-SNIP=/etc/profile.d/pi-core-staged.sh
-check "profile.d snippet present" test -f "$SNIP"
-if grep -q '/run/ostree/staged-deployment' "$SNIP" 2>/dev/null; then
-    pass "keys off the staged-deployment marker"
+# A deployment is staged long after boot, so a banner generated only at boot
+# would never mention it. The service is also wanted by
+# bootc-status-updated.target, which fires on staging.
+MOTD_UNIT=/usr/lib/systemd/system/pi-core-motd.service
+if grep -qE '^WantedBy=.*bootc-status-updated\.target' "$MOTD_UNIT" 2>/dev/null; then
+    pass "the banner is regenerated when bootc status changes"
 else
-    fail "does not check /run/ostree/staged-deployment"
+    fail "nothing re-runs the banner on staging — the notice would never appear"
 fi
-# Sourced by every interactive shell, so a syntax error breaks logging in.
-if sh -n "$SNIP" 2>/dev/null; then
-    pass "parses as POSIX sh"
+# RemainAfterExit=yes would leave it "active" and it would never run again.
+if grep -q 'RemainAfterExit=yes' "$MOTD_UNIT" 2>/dev/null; then
+    fail "RemainAfterExit=yes — the unit would never re-run on staging"
 else
-    fail "syntax error — this is sourced at every login"
+    pass "it can run more than once"
 fi
-# Without an interactivity guard it prints into scp, sftp and rsync sessions
-# and corrupts them. $- is the reliable test; PS1 is not, because bash unsets
-# it for non-interactive shells even when it is in the environment.
-if grep -q 'case \$- in' "$SNIP" 2>/dev/null; then
-    pass "guards on \$-, so it stays out of scp and rsync"
+check "the banner knows about staged deployments" grep -q '/run/ostree/staged-deployment' /usr/bin/pi-core-motd
+
+head_ "version"
+# `bootc status` reports the image digest, which says nothing to a human about
+# which build they are on.
+# shellcheck disable=SC1091
+PN2=$(. /usr/lib/os-release; echo "$PRETTY_NAME")
+if [[ "$PN2" =~ pi-core\ (v[0-9]|[0-9a-f]{7}|unknown) ]]; then
+    pass "PRETTY_NAME carries a version: '$PN2'"
 else
-    fail "no \$- interactivity guard — this would corrupt scp/sftp/rsync"
+    fail "PRETTY_NAME has no version in it: '$PN2'"
 fi
 
 head_ "hostname (Ignition used to write /etc/hostname)"

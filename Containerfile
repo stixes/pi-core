@@ -11,6 +11,9 @@ ARG FEDORA_RELEASE=44
 # scoped to ghcr.io/<owner>/pi-core and containers-policy has no wildcard for a
 # path segment, so the owner has to be materialised at build time.
 ARG REPO_ORGANIZATION=
+# `git describe`: "v0.5" on a release, "v0.5-3-g2850264" three commits past it.
+# The banner shows this, so a machine can say which build it is running.
+ARG PI_CORE_VERSION=unknown
 FROM scratch AS ctx
 COPY build_files /build_files
 COPY system_files /system_files
@@ -23,11 +26,16 @@ FROM ${BASE_IMAGE}:${BASE_TAG}
 # automatically in scope here.
 ARG FEDORA_RELEASE
 ARG REPO_ORGANIZATION
+ARG PI_CORE_VERSION
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=tmpfs,dst=/tmp \
     FEDORA_RELEASE=${FEDORA_RELEASE} \
-    REPO_ORGANIZATION=${REPO_ORGANIZATION} /ctx/build_files/build.sh
+    REPO_ORGANIZATION=${REPO_ORGANIZATION} \
+    PI_CORE_VERSION=${PI_CORE_VERSION} /ctx/build_files/build.sh
 
 RUN ["bootc", "container", "lint"]
+
+# So `skopeo inspect` and the registry UI can say which build a digest is.
+LABEL org.opencontainers.image.version="${PI_CORE_VERSION}"

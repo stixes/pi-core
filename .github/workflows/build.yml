@@ -77,6 +77,7 @@ jobs:
             --build-arg BASE_TAG="${BASE_TAG}" \
             --build-arg FEDORA_RELEASE="${FEDORA_RELEASE}" \
             --build-arg REPO_ORGANIZATION="${REPO_ORGANIZATION}" \
+            --build-arg PI_CORE_VERSION="$(git describe --tags --always 2>/dev/null || echo unknown)" \
             -t "${IMAGE_NAME}:${DEFAULT_TAG}" .
 
       - name: Tier 1 - image assertions

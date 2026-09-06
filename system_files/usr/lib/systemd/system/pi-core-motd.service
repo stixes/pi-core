@@ -8,8 +8,13 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-RemainAfterExit=yes
+# Deliberately not RemainAfterExit: the unit is re-run whenever
+# bootc-status-updated.target activates, and a unit that stays "active" would
+# never run a second time.
 ExecStart=/usr/bin/pi-core-motd
 
 [Install]
-WantedBy=multi-user.target
+# bootc-status-updated.target fires when a deployment is staged, which is how
+# the staged notice reaches a banner generated at boot. Verified on a Pi 4:
+# the target's activation timestamp moves the moment `bootc upgrade` stages.
+WantedBy=multi-user.target bootc-status-updated.target

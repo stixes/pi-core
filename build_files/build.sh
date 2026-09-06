@@ -3,6 +3,7 @@
 set -oue pipefail
 
 FEDORA_RELEASE="${FEDORA_RELEASE:-44}"
+PI_CORE_VERSION="${PI_CORE_VERSION:-unknown}"
 FW_STASH=/usr/lib/pi-core/firmware
 
 echo "::: pi-core build on $(rpm -E '%{_arch}'), Fedora $(rpm -E '%fedora')"
@@ -134,7 +135,7 @@ done
 # shellcheck disable=SC1091  # exists in the build container, not in this repo
 OSVER="$(. /usr/lib/os-release; echo "${OSTREE_VERSION:-${VERSION_ID}}")"
 sed -i \
-    -e "s|^PRETTY_NAME=.*|PRETTY_NAME=\"pi-core (Fedora CoreOS ${OSVER})\"|" \
+    -e "s|^PRETTY_NAME=.*|PRETTY_NAME=\"pi-core ${PI_CORE_VERSION} (Fedora CoreOS ${OSVER})\"|" \
     -e 's|^VARIANT=.*|VARIANT="pi-core"|' \
     -e 's|^VARIANT_ID=.*|VARIANT_ID=pi-core|' \
     /usr/lib/os-release

@@ -17,6 +17,7 @@ SNIPPET="${SNIPPET_DIR}/20_pi-core.motd"
 G=$'\e[1;32m'   # leaves
 R=$'\e[1;31m'   # berry
 D=$'\e[2m'      # labels
+Y=$'\e[1;33m'   # the staged-update notice
 N=$'\e[0m'
 
 # shellcheck disable=SC1091
@@ -46,6 +47,15 @@ ADDRS="$(ip -4 -br addr show scope global 2>/dev/null \
 # boot. Reading its result beats mounting it a second time here.
 FW="$(cat /run/pi-core/firmware-status 2>/dev/null || echo "not checked")"
 
+# /run/ostree/staged-deployment exists exactly while a deployment is staged.
+# This snippet is regenerated when it appears, because the service is also
+# pulled in by bootc-status-updated.target -- so the banner is current at a
+# login that happens long after boot, which is when staging actually happens.
+STAGED=""
+if [ -e /run/ostree/staged-deployment ]; then
+    STAGED=$'\n'"   ${Y}An update is staged.${N} Reboot to apply it:  sudo systemctl reboot"
+fi
+
 mkdir -p "${SNIPPET_DIR}"
 cat > "${SNIPPET}" <<EOF
 
@@ -58,5 +68,5 @@ ${R}( : '~'.~.'~' : )${N}   ${D}Address${N}   ${ADDRS}
  ${R}~ .~ (   ) ~. ~${N}    ${D}Firmware${N}  ${FW}
   ${R}(  : '~' :  )${N}
    ${R}'~ .~~~. ~'${N}$( [[ -n "${OWNER}" ]] && printf '      %sIssues%s    https://github.com/%s/pi-core/issues' "${D}" "${N}" "${OWNER}" )
-       ${R}'~'${N}
+       ${R}'~'${N}${STAGED}
 EOF

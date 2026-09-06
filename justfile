@@ -15,6 +15,7 @@ build:
         --build-arg BASE_TAG="$BASE_TAG" \
         --build-arg FEDORA_RELEASE="$FEDORA_RELEASE" \
         --build-arg REPO_ORGANIZATION="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}" \
+        --build-arg PI_CORE_VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo unknown)" \
         -t "$IMAGE_NAME:$DEFAULT_TAG" .
 
 # Show what the built image contains
