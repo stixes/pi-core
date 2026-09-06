@@ -163,13 +163,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Release notes come from the annotated tag, and a shallow checkout
-          # does not fetch the tag object -- gh then silently falls back to the
-          # commit message, which is written for us, not for whoever downloads
-          # the image.
-          fetch-tags: true
-          fetch-depth: 0
 
       - name: Load build parameters
         run: |
@@ -240,16 +233,28 @@ jobs:
           case "$TAG" in
               v0.*|*-rc*|image-*) PRE="--prerelease" ;;
           esac
-          # Notes come from the annotated tag, so they say what changed in this
-          # release. A static notes file cannot: it turns into a manual, and the
-          # manual already lives in README.md and INSTALL.md. A dispatch build
-          # has no annotated tag, so fall back to generated commit notes.
-          NOTES="--notes-from-tag"
-          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-              NOTES="--generate-notes"
+          # Notes are the annotated tag's message, read from the API rather than
+          # left to `gh --notes-from-tag`: that flag silently fell back to the
+          # commit message twice, even with the tag object present and fetched.
+          # A static notes file is not an option either -- it turns into a
+          # manual, and the manual is in README.md and INSTALL.md.
+          NOTES_FILE=/tmp/release-notes.md
+          : > "$NOTES_FILE"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              OBJ=$(gh api "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" --jq '.object.sha // empty' 2>/dev/null || true)
+              TYPE=$(gh api "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" --jq '.object.type // empty' 2>/dev/null || true)
+              # A lightweight tag has no message; only an annotated one does.
+              if [[ "$TYPE" == "tag" && -n "$OBJ" ]]; then
+                  gh api "repos/${GITHUB_REPOSITORY}/git/tags/${OBJ}" --jq '.message' > "$NOTES_FILE" 2>/dev/null || true
+              fi
+          fi
+          if [[ -s "$NOTES_FILE" ]]; then
+              NOTES=(--notes-file "$NOTES_FILE")
+          else
+              NOTES=(--generate-notes)
           fi
           # shellcheck disable=SC2086
-          gh release create "$TAG" $PRE $NOTES --title "pi-core $TAG"
+          gh release create "$TAG" $PRE "${NOTES[@]}" --title "pi-core $TAG"
           gh release upload "$TAG" --clobber \
               build/pi-core-*.img.xz \
               build/SHA256SUMS \
