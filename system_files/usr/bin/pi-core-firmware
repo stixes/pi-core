@@ -78,6 +78,14 @@ do_sync() {
             echo "  keeping existing ${name} (new version at ${f})"
             continue
         fi
+        # `cp -a dir dest` with dest already a directory copies *into* it,
+        # giving overlays/overlays. Clear the destination first so a directory
+        # is replaced rather than nested, and so files dropped upstream do not
+        # linger and fail the check. Seen on a Pi 4: sync succeeded, then check
+        # reported drift on overlays/.
+        if [[ -d "$f" ]]; then
+            rm -rf "${mnt:?}/${name}"
+        fi
         cp -a --no-preserve=ownership "$f" "${mnt}/${name}"
         echo "  wrote ${name}"
     done

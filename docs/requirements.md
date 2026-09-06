@@ -162,13 +162,17 @@ Requirements not yet met. Which of them currently hold on hardware is tracked
 in CLAUDE.md's Status section; this list is the requirement side of it, and the
 two should not drift apart.
 
-- **R13 does not extend to installation.** `bootc install` is given
-  `--target-no-signature-verification`, because the container policy shipped in
-  the image carries no entry for our cosign key. The image is verified out of
-  band instead. This also means `bootc upgrade` on the device does not verify
-  signatures, which is the larger half of the problem.
+- **R13 does not extend to installation, and cannot.** `bootc upgrade` now
+  verifies our cosign signature against the policy the image ships. `bootc
+  install` never verifies one, by design rather than by omission: it installs
+  from local containers-storage, which it treats as already trusted. The
+  install is therefore only as trustworthy as whoever built the card, and the
+  published `SHA256SUMS.sig` (R14) is what covers that instead.
+- **The first upgrade after this shipped was itself unverified.** The upgrade
+  that *delivers* a policy is evaluated under the previous one. Nothing can
+  change that; it is noted so nobody reads a verified second upgrade as proof
+  of the first.
 - **R10's rollback half is unexercised.**
-- **R12's `sync` path is unexercised** on hardware; only `check` has run.
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
   two-partition layout, and on a `coreos-installer` install the same entry

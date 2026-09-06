@@ -166,10 +166,11 @@ Not yet proven, and worth saying so rather than implying otherwise:
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
   first boot since it was fixed.
-- **The image install is unsigned.** `build-image.sh` passes
-  `--target-no-signature-verification` because the container policy in the
-  image carries no entry for our cosign key. The image is verified out of band
-  instead. This is the largest outstanding gap.
+- **Installation is unsigned, and stays that way.** `bootc upgrade` verifies
+  our cosign signature (proven on hardware, with negative controls). `bootc
+  install` never verifies: it installs from local containers-storage, which it
+  trusts by construction, so the flag that used to be there was a no-op.
+  `SHA256SUMS.sig` on the release is what a downloader checks instead.
 
 `docs/hardware-acceptance.md` is the checklist. Six behaviours that Fedora
 CoreOS provides during an Ignition firstboot had to be reimplemented for

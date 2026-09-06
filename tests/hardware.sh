@@ -84,14 +84,14 @@ USBC=$(rc "lsusb 2>/dev/null | wc -l" || echo 0)
 if [[ "${USBC:-0}" -gt 0 ]]; then pass "USB enumerates (${USBC} devices)"; else skip "no USB devices listed"; fi
 
 head_ "firmware tooling"
-check "pi-core-firmware runs" rq "pi-core-firmware check"
+check "pi-core-firmware runs" rq "sudo pi-core-firmware check"
 if rq "journalctl -b 0 -u pi-core-firmware-check.service --no-pager | grep -q ."; then
     pass "firmware-check unit logged at boot"
 else
     fail "no output from pi-core-firmware-check.service this boot"
 fi
 echo "      --- firmware drift report ---"
-rc "pi-core-firmware check" | sed 's/^/      /'
+rc "sudo pi-core-firmware check" | sed 's/^/      /'
 
 head_ "signature verification (requirements.md R13)"
 # The policy only means anything if the origin enforces it.
