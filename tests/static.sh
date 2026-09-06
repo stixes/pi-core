@@ -111,6 +111,19 @@ else
     fail "the push target is not PUBLISH_TAG — main could be publishing :stable"
 fi
 
+head_ "documented bootc switch keeps verification on"
+# --enforce-container-sigpolicy is opt-in on `switch`: without it the new
+# deployment records no policy and the machine silently stops verifying
+# updates. Proven on a Pi 4 -- a plain switch staged with signature: None.
+BAD=$(grep -rn 'bootc switch' --include='*.md' . 2>/dev/null \
+      | grep -v '^\./build/' | grep -v -- '--enforce-container-sigpolicy' || true)
+if [[ -n "${BAD}" ]]; then
+    fail "a documented 'bootc switch' omits --enforce-container-sigpolicy:"
+    printf '      %s\n' "${BAD}" | head -3
+else
+    pass "every documented switch enforces the signature policy"
+fi
+
 head_ "first boot needs no network (requirements.md R3)"
 # The installer model pulled a container on first boot and made the network,
 # the clock and a registry into boot dependencies. Each of those failed on real

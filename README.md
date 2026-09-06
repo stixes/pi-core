@@ -164,13 +164,18 @@ device until a tag moves it, which is what lets a release mature first.
 To follow `:testing` on a machine you already have:
 
 ```bash
-sudo bootc switch ghcr.io/<owner>/pi-core:testing
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/<owner>/pi-core:testing
 sudo systemctl reboot
 ```
 
+**`--enforce-container-sigpolicy` is not optional.** It is opt-in on `switch`,
+and without it the new deployment records no signature policy at all — the
+machine silently stops verifying updates. `bootc status` shows which you got:
+`signature: containerPolicy` if it is enforced, absent if it is not.
+
 `sudo bootc rollback` returns you to the deployment you were on, and switching
-back to `:stable` is the same command with the other tag. Signatures are
-verified either way — the policy is scoped to the repository, not to a tag.
+back to `:stable` is the same command with the other tag. Both tags verify
+against the same key — the policy is scoped to the repository, not to a tag.
 
 One consequence worth knowing: because only a tag moves `:stable`, upstream
 Fedora and uCore security fixes reach `:stable` when a release is cut, not
