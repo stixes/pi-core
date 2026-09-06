@@ -56,15 +56,6 @@ for arg in "$@"; do
     esac
 done
 
-# In dry-run nothing is mutated: report the action and carry on.
-run() {
-    if [[ "${DRY}" -eq 1 ]]; then
-        log "would: $*"
-        return 0
-    fi
-    "$@"
-}
-
 if [[ -e "${SENTINEL}" && "${FORCE}" -eq 0 && "${DRY}" -eq 0 ]]; then
     log "already provisioned (${SENTINEL}); nothing to do"
     exit 0
@@ -125,16 +116,22 @@ done < "${CONF}"
 APPLIED=0
 
 apply_PI_HOSTNAME() {
-    if run hostnamectl set-hostname "$1" 2>/dev/null; then
-        log "hostname set to $1"; APPLIED=1
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: hostnamectl set-hostname $1"; APPLIED=$((APPLIED + 1)); return
+    fi
+    local err
+    # Keep the error text. Sending it to /dev/null is what once turned a
+    # filesystem that never grew into a machine reporting no errors at all.
+    if err=$(hostnamectl set-hostname "$1" 2>&1); then
+        log "hostname set to $1"; APPLIED=$((APPLIED + 1))
     else
-        warn "failed to set hostname"
+        warn "failed to set hostname: ${err}"
     fi
 }
 
 apply_PI_SSH_KEY() {
     if [[ "${DRY}" -eq 1 ]]; then
-        log "would: add SSH key for ${CORE_USER} (${1:0:24}...)"; APPLIED=1; return
+        log "would: add SSH key for ${CORE_USER} (${1:0:24}...)"; APPLIED=$((APPLIED + 1)); return
     fi
     local home ak
     home=$(getent passwd "${CORE_USER}" | cut -d: -f6)
@@ -153,26 +150,31 @@ apply_PI_SSH_KEY() {
     # authorized_keys in a home directory needs its own SELinux type, and the
     # file is created here rather than by a login, so nothing else relabels it.
     restorecon -F "${ak}" 2>/dev/null || true
-    APPLIED=1
+    APPLIED=$((APPLIED + 1))
 }
 
 apply_PI_PASSWORD_HASH() {
+    local err
     if [[ "$1" != \$* ]]; then
         warn "PI_PASSWORD_HASH does not look like a hash (must start with \$) — refusing to set a plaintext password"
     elif [[ "${DRY}" -eq 1 ]]; then
-        log "would: set console password for ${CORE_USER}"; APPLIED=1
-    elif echo "${CORE_USER}:$1" | chpasswd -e 2>/dev/null; then
-        log "console password set for ${CORE_USER}"; APPLIED=1
+        log "would: set console password for ${CORE_USER}"; APPLIED=$((APPLIED + 1))
+    elif err=$(echo "${CORE_USER}:$1" | chpasswd -e 2>&1); then
+        log "console password set for ${CORE_USER}"; APPLIED=$((APPLIED + 1))
     else
-        warn "failed to set the password"
+        warn "failed to set the password: ${err}"
     fi
 }
 
 apply_PI_TIMEZONE() {
-    if run timedatectl set-timezone "$1" 2>/dev/null; then
-        log "timezone set to $1"; APPLIED=1
+    if [[ "${DRY}" -eq 1 ]]; then
+        log "would: timedatectl set-timezone $1"; APPLIED=$((APPLIED + 1)); return
+    fi
+    local err
+    if err=$(timedatectl set-timezone "$1" 2>&1); then
+        log "timezone set to $1"; APPLIED=$((APPLIED + 1))
     else
-        warn "invalid timezone '$1'"
+        warn "invalid timezone '$1': ${err}"
     fi
 }
 
@@ -181,7 +183,7 @@ apply_PI_TIMEZONE() {
 apply_PI_WIFI_SSID() {
     local iface
     if [[ "${DRY}" -eq 1 ]]; then
-        log "would: add a wifi connection for SSID '$1'"; APPLIED=1; return
+        log "would: add a wifi connection for SSID '$1'"; APPLIED=$((APPLIED + 1)); return
     fi
     if ! command -v nmcli >/dev/null; then
         warn "nmcli not present; skipping wifi"; return
@@ -199,7 +201,7 @@ apply_PI_WIFI_SSID() {
     if nmcli "${args[@]}" >/dev/null 2>&1; then
         nmcli connection up pi-core-wifi >/dev/null 2>&1 \
             || warn "wifi profile created but did not connect (wrong PSK, or out of range)"
-        log "wifi configured for SSID '$1'"; APPLIED=1
+        log "wifi configured for SSID '$1'"; APPLIED=$((APPLIED + 1))
     else
         warn "could not create the wifi connection"
     fi
@@ -210,14 +212,14 @@ apply_PI_WIFI_PSK() { :; }
 
 apply_PI_TAILSCALE_AUTHKEY() {
     if [[ "${DRY}" -eq 1 ]]; then
-        log "would: join the tailnet with the supplied auth key"; APPLIED=1; return
+        log "would: join the tailnet with the supplied auth key"; APPLIED=$((APPLIED + 1)); return
     fi
     if ! command -v tailscale >/dev/null; then
         warn "tailscale not installed; skipping"; return
     fi
     systemctl enable --now tailscaled 2>/dev/null || true
     if tailscale up --authkey="$1" --hostname="${PI_HOSTNAME:-$(hostname)}" 2>/dev/null; then
-        log "joined the tailnet"; APPLIED=1
+        log "joined the tailnet"; APPLIED=$((APPLIED + 1))
     else
         warn "tailscale up failed (key expired or already used?)"
     fi

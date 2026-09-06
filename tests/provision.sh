@@ -70,6 +70,16 @@ PI_CORE_ESP_DIR="$WORK" bash "$PROV" --dry-run >/dev/null 2>&1
 expect "secrets not wiped in dry-run" 'PI_PASSWORD_HASH=\$y' "$(cat "$WORK/pi-core.conf")"
 if [[ -e /var/lib/pi-core/provisioned ]]; then skip "sentinel exists on this host"; else pass "no sentinel written"; fi
 
+head_ "dry-run reports without claiming"
+# A dry run that says "hostname set to x" is worse than useless: it is the
+# tool's whole job to distinguish what would happen from what did.
+OUT=$(run_conf 'PI_HOSTNAME=testbox
+PI_TIMEZONE=UTC
+')
+expect     "says what it would do"   'would: hostnamectl set-hostname testbox' "$OUT"
+expect_not "does not claim hostname" 'hostname set to' "$OUT"
+expect_not "does not claim timezone" 'timezone set to' "$OUT"
+
 head_ "wireless keys"
 OUT=$(run_conf 'PI_WIFI_SSID=somenet
 PI_WIFI_PSK=hunter2hunter2
