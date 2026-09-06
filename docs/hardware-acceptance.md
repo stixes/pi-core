@@ -17,7 +17,10 @@ reach it:
   machine out from under you.
 
 Run it end to end on the first hardware attempt, and again whenever the base
-image, kernel, firmware payload or boot configuration changes.
+image, kernel, firmware payload or boot configuration changes — and after
+cutting a release, against `:stable` rather than the `:testing` image that was
+tested before the tag. A tag rebuilds its commit, so the released image is a
+different artifact from the one the development cycle proved.
 
 ## Before you start
 
@@ -167,7 +170,8 @@ The manual equivalents, for reference or when SSH is not available:
 - [ ] **D4** SSH from another machine works using the DHCP-leased address.
 - [ ] **D5** `docker info` succeeds and `tailscale version` runs.
 
-Record: `uname -r`, and `cat /proc/cpuinfo | grep Revision`.
+Record: `uname -r`, and the board revision from
+`od -An -tx1 /proc/device-tree/system/linux,revision`.
 
 ## E. Firmware tooling
 

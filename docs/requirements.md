@@ -156,6 +156,11 @@ run through [hardware-acceptance.md](hardware-acceptance.md) with the result
 recorded. The automated tiers cannot reach the boot chain; nothing but hardware
 can close that gap.
 
+The hardware run must be against **the image the release publishes**, not the
+`:testing` image that preceded it. A version tag rebuilds its commit, and the
+base image and Fedora packages float, so the two are different artifacts even
+though the source is identical.
+
 ## 8. Known gaps
 
 Requirements not yet met. Which of them currently hold on hardware is tracked

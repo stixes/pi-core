@@ -106,6 +106,43 @@ Green CI is not proof — verify the artifact:
 cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable"
 ```
 
+## Release cycle
+
+Development lands on main and goes to `:testing`, which is what the Pi tracks
+between releases. A release is a deliberate, separate act:
+
+1. Changes are developed and pushed to main. Every push builds `:testing`.
+2. Test on hardware from `:testing`, no reflash needed:
+   `bootc switch --enforce-container-sigpolicy ghcr.io/<owner>/pi-core:testing`
+3. When something significant has accumulated, *suggest* a release. Cutting one
+   is the owner's call, never automatic.
+4. The owner requests it, or approves the suggestion.
+5. `git tag vN.N && git push --tags` — CI **rebuilds that commit**, publishes
+   `:stable`, builds and signs the flashable `.img`, and cuts the release.
+6. Back to 1.
+
+**The rebuild at step 5 is deliberate, not laziness.** It is what lets a
+release carry content that only exists in a release: `PI_CORE_VERSION` comes
+from `git describe` at build time, so a tagged build bakes `pi-core v0.6` where
+a promoted `:testing` image would still say `v0.5-8-g…`, and an SBOM or
+changelog would work the same way. Promoting the tested digest with `skopeo
+copy` is cheaper and keeps the signature for free, but nothing inside the image
+can then change.
+
+What it costs is worth knowing: **a rebuild of the same commit is not the same
+image.** `BASE_IMAGE` tracks `ucore-minimal:stable` and the dnf installs in
+`build.sh` resolve against current Fedora, so the released artifact can carry a
+different base and different packages than the `:testing` build that was tested
+on hardware. Tiers 0, 1 and 1.5 re-run on it, so it is not unguarded — but
+boot, growth and upgrade behaviour was proven on a different artifact.
+
+So: **after cutting a release, point the Pi at `:stable` and run `just
+test-hardware` before flashing any card from it.** If a release ever surprises
+us, the fix is to resolve the base to a digest at build time and label it, so a
+release build can pin the exact base the tested build used — deliberately not
+done yet, because it would also freeze what the nightly rebuild exists to pick
+up.
+
 ## Rules
 
 - **aarch64 only.** `build.sh` asserts the arch and fails loudly; do not
