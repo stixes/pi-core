@@ -275,6 +275,31 @@ else
     pass "derives the namespace at runtime"
 fi
 
+head_ "staged-update notice"
+# motd.d is generated at boot and a deployment is staged later, so this has to
+# be evaluated at login -- the same split console-login-helper-messages uses.
+SNIP=/etc/profile.d/pi-core-staged.sh
+check "profile.d snippet present" test -f "$SNIP"
+if grep -q '/run/ostree/staged-deployment' "$SNIP" 2>/dev/null; then
+    pass "keys off the staged-deployment marker"
+else
+    fail "does not check /run/ostree/staged-deployment"
+fi
+# Sourced by every interactive shell, so a syntax error breaks logging in.
+if sh -n "$SNIP" 2>/dev/null; then
+    pass "parses as POSIX sh"
+else
+    fail "syntax error — this is sourced at every login"
+fi
+# Without an interactivity guard it prints into scp, sftp and rsync sessions
+# and corrupts them. $- is the reliable test; PS1 is not, because bash unsets
+# it for non-interactive shells even when it is in the environment.
+if grep -q 'case \$- in' "$SNIP" 2>/dev/null; then
+    pass "guards on \$-, so it stays out of scp and rsync"
+else
+    fail "no \$- interactivity guard — this would corrupt scp/sftp/rsync"
+fi
+
 head_ "hostname (Ignition used to write /etc/hostname)"
 # The image cannot ship /etc/hostname: podman bind-mounts it during a build, so
 # it never reaches the image. Written at boot instead -- without it systemd
