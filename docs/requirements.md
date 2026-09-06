@@ -83,6 +83,26 @@ Each has an ID so tests and commit messages can name it.
   rollback. Drift is reported; applying it is a deliberate command.
   *Verified: `tests/image-assertions.sh`; `pi-core-firmware check`.*
 
+### Updating
+
+- **R16 — Updates are staged, never applied unattended.** The machine may fetch
+  and stage a new deployment on its own; making it live is always a reboot the
+  owner chooses. This is what makes an automatic release stream safe to point
+  at a device at all.
+  *Verified: `tests/hardware.sh`; `AutomaticUpdatePolicy=stage`.*
+- **R17 — A staged update is announced at login, whoever staged it.** An update
+  that waits silently for a reboot that never comes is not an update. The
+  announcement must not depend on which tool did the staging.
+  *Verified: `tests/image-assertions.sh` (path unit on the staged-deployment
+  marker, preset enablement); proven on a Pi 4 for both `bootc` and
+  `rpm-ostree` staging.*
+- **R18 — Security fixes reach a device without a feature release.** Most of
+  what a deployed card needs is upstream: a newer base image and newer
+  packages. Waiting for pi-core to have something to say about it is the wrong
+  gate.
+  *Verified: `.github/workflows/weekly.yml`; `tests/static.sh` asserts it
+  rebuilds released source only.*
+
 ### Supply chain
 
 - **R13 — The published container image is signed** and pullable with no
@@ -95,6 +115,10 @@ Each has an ID so tests and commit messages can name it.
   image without edits.
   *Verified: `tests/static.sh` fails on a hardcoded owner anywhere in the
   image; `scripts/repo-owner.sh` derives it.*
+- **R19 — An image says what it is and what it came from.** A digest is not an
+  answer to "which build is this, and against what upstream". Both the release
+  version and the base image digest are recorded on every image.
+  *Verified: `tests/image.sh` asserts both labels.*
 
 ## 4. Non-functional requirements
 
@@ -133,7 +157,13 @@ aarch64 only, asserted at build time.
 - **Fleet management, provisioning servers, config management.** pi-core
   produces a host; what runs on it is not its concern.
 - **A desktop.** No display manager, no graphical target.
-- **NVMe boot on Pi 5** — U-Boot has no BCM2712 PCIe support.
+- **NVMe boot on Pi 5** — under investigation, and the reason previously given
+  here was wrong. The Pi's own firmware boots NVMe fine; the question is
+  whether U-Boot can carry on from it. Our shipped U-Boot 2026.04 *does*
+  contain the `brcm,bcm2712-pcie` compatible and the `nvme` commands, but
+  `boot_targets` is `mmc usb pxe dhcp`, so nothing scans NVMe automatically.
+  Whether the controller probes, and whether the NVMe-over-PCI transport is
+  built in at all, is untested.
 
 ## 6. Constraints
 
@@ -177,6 +207,9 @@ two should not drift apart.
   that *delivers* a policy is evaluated under the previous one. Nothing can
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
+- **The Pi 5 has never booted pi-core.** Everything in the image is
+  model-agnostic and the firmware ships for it, but no Pi 5 has run it, so the
+  RP1 southbridge binding that ethernet and USB depend on is unproven.
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
   two-partition layout, and on a `coreos-installer` install the same entry
