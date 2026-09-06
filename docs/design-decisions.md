@@ -213,13 +213,21 @@ and there is no cost to shipping it whole. Targeting is a separate decision:
 
 - **Pi 5** — U-Boot 2026.04 carries `brcm,bcm2712` including `bcm2712-sdhci`,
   and the image's kernel has `rp1_pci`, `clk-rp1` and `pinctrl-rp1`, so the SD
-  boot path and the RP1 southbridge are both present. No NVMe: U-Boot has no
-  BCM2712 PCIe yet.
+  boot path and the RP1 southbridge are both present. NVMe is unresolved: the
+  Pi's own firmware boots it, but `boot_targets` is `mmc usb pxe dhcp`, so
+  U-Boot never scans it. See requirements.md §5.
 - **Pi 4** — the model Fedora CoreOS actually documents; kept as the reference
   path.
-- **Pi 3 / Zero 2 W** — excluded on RAM (1 GB and 512 MB), not on enablement.
-  The DTBs are in the kernel and the firmware ships, so they may well boot;
-  they are just not somewhere a container host belongs.
+- **Pi 3 / Zero 2 W** — cannot boot the image, which is a firmer reason than
+  the RAM one recorded here first. The BCM2837 boot ROM reads MBR only and
+  `bootc install to-disk` writes GPT, so the ROM never finds `bootcode.bin`.
+  Tested: the card that boots the Pi 4 produced nothing at all in a Pi 3B+.
+  Enablement was never the problem — the DTBs, firmware and `[pi3]` config all
+  ship and the boot entry pins no device tree. A hybrid MBR on every build
+  would fix it, and is not worth it to reach a 1 GB board.
+
+  The lesson generalises: *the image* is model-agnostic, *the disk layout* is
+  not. Both had to be checked and only one of them had been.
 
 ## aarch64 only, asserted at build time
 

@@ -7,7 +7,8 @@ for Raspberry Pi, for my personal homelab.
 > is not proven is kept in [CLAUDE.md](CLAUDE.md#status); the checklist that
 > proves it is [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
 
-Targets **Pi 5 and Pi 4**; Pi 3 and Zero 2 W are out of scope on RAM. Scope and
+Targets **Pi 5 and Pi 4** — a small always-on container host. Pi 3 and Zero 2 W
+cannot boot it: their boot ROM reads MBR only and the image is GPT. Scope and
 the reasons are in [docs/requirements.md](docs/requirements.md#5-scope).
 
 ## How it works

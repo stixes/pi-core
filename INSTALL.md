@@ -13,7 +13,7 @@ downloaded, no network needed to get a usable machine.
 |---|---|---|
 | **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§6) |
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
-| Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship, but 1 GB (or less) RAM is below what FCOS plus containers wants. May work; untested, unsupported |
+| Pi 3 / Zero 2 W | **cannot boot** | Its ROM reads MBR only; this image is GPT, so nothing is ever loaded. Tested, not assumed. Firmware and DTBs ship regardless — one package covers every model |
 
 ## 0. What you need
 
