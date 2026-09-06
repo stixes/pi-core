@@ -121,6 +121,41 @@ else
     fail "the push target is not PUBLISH_TAG — main could be publishing :stable"
 fi
 
+head_ "weekly rebuild cannot ship new source"
+# The whole safety argument for an automatic release is that it rebuilds the
+# *released* commit, so nothing on main reaches a device without a human. If
+# this ever tagged HEAD instead, a week's unreviewed work would ship itself.
+WEEKLY=.github/workflows/weekly.yml
+# shellcheck disable=SC2016
+if grep -q 'git rev-list -n1 "\${LAST}"' "$WEEKLY"; then
+    pass "the weekly rebuild tags the last release's commit"
+else
+    fail "weekly.yml does not resolve the last release tag to a commit — it may be tagging main"
+fi
+# shellcheck disable=SC2016
+if grep -q 'gh workflow run build.yml --ref "\${TAG}"' "$WEEKLY"; then
+    pass "it dispatches the release build on the tag it created"
+else
+    fail "weekly.yml does not dispatch build.yml on its new tag"
+fi
+# Only the dated series is extended automatically. Matching v* loosely would
+# let an -rc or a stray tag become the base for an automatic release.
+if grep -qF 'v[0-9]+\.[0-9]{8}' "$WEEKLY"; then
+    pass "it only extends the dated release series"
+else
+    fail "weekly.yml does not constrain which tag shape it extends"
+fi
+
+head_ "a release build takes its version from the tag"
+# `git describe` is ambiguous once the weekly rebuild puts a second tag on a
+# commit that already has one, and it may answer with the older of the two.
+# shellcheck disable=SC2016
+if grep -qF 'PI_CORE_VERSION=${GITHUB_REF#refs/tags/}' .github/workflows/build.yml; then
+    pass "a tagged build is versioned by its ref"
+else
+    fail "the release build still derives its version from git describe"
+fi
+
 head_ "documented bootc switch keeps verification on"
 # --enforce-container-sigpolicy is opt-in on `switch`: without it the new
 # deployment records no policy and the machine silently stops verifying

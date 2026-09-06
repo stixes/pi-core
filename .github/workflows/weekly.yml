@@ -1,0 +1,135 @@
+---
+name: Weekly rebuild
+
+# Rebuild the current release against current upstream, so a card that is
+# already deployed gets base-image and Fedora security fixes without anyone
+# cutting a feature release.
+#
+# The source is the *last release tag's commit*, never main. That keeps the
+# invariant intact -- a commit on main cannot reach a device -- while still
+# letting upstream fixes through. All that changes between one dated release
+# and the next is what the base image and dnf resolve to.
+#
+# It does not build anything itself. It creates the tag and then dispatches
+# build.yml on it, so there is exactly one implementation of "cut a release".
+#
+# Note that dispatching on a tag runs the workflow *as it was at that tag*, not
+# as it is on main. That is the right default -- a rebuild of a release should
+# be built the way that release was -- but it means workflow changes reach the
+# weekly path only when the next release is cut by hand.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays, after the nightly :testing build has had a week
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Release even if the base image has not moved'
+        type: boolean
+        default: false
+
+jobs:
+  consider:
+    name: Rebuild the current release if upstream moved
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write   # push the tag
+      actions: write    # dispatch build.yml
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Load build parameters
+        run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' pi-core.env >> "$GITHUB_ENV"
+
+      - name: Find the current release
+        id: current
+        run: |
+          # Dated releases only. A tag in any other shape (v0.5, an -rc) is not
+          # part of the series and must not be extended automatically.
+          LAST=$(git tag -l 'v*' --sort=-v:refname \
+                 | grep -E '^v[0-9]+\.[0-9]{8}(\.[0-9]+)?$' | head -1 || true)
+          if [[ -z "${LAST}" ]]; then
+              echo "No dated release exists yet; cut one by hand first." >&2
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+          echo "last=${LAST}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-list -n1 "${LAST}")" >> "$GITHUB_OUTPUT"
+          echo "Current release ${LAST}"
+
+      - name: Install skopeo
+        # Without it the digest lookup below fails, which is not fatal -- it
+        # falls through to "release anyway" -- but then the skip never works
+        # and every Monday cuts a release. Install it rather than degrade.
+        run: command -v skopeo || { sudo apt-get update -qq && sudo apt-get install -y -qq skopeo; }
+
+      - name: Has upstream moved?
+        id: drift
+        if: steps.current.outputs.skip != 'true'
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          REGISTRY="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          # --override-arch: the published image is arm64, and this runner is
+          # not. Without it the two digests describe different manifests and
+          # would never compare equal.
+          CURRENT=$(skopeo inspect --override-arch arm64 --override-os linux \
+                    --format '{{.Digest}}' \
+                    "docker://${BASE_IMAGE}:${BASE_TAG}" 2>/dev/null || true)
+          RELEASED=$(skopeo inspect --override-arch arm64 --override-os linux \
+                     "docker://${REGISTRY}/${IMAGE_NAME}:${DEFAULT_TAG}" 2>/dev/null \
+                     | jq -r '.Labels["org.opencontainers.image.base.digest"] // empty' || true)
+          echo "base now:      ${CURRENT:-unknown}"
+          echo "base released: ${RELEASED:-unrecorded}"
+          # Anything unknown means rebuild. A redundant release is cheap; a
+          # missed security rebuild is not, so the uncertain case releases.
+          if [[ "${FORCE}" == "true" ]]; then
+              echo "reason=forced" >> "$GITHUB_OUTPUT"
+          elif [[ -z "${CURRENT}" || -z "${RELEASED}" ]]; then
+              echo "reason=could not compare base digests" >> "$GITHUB_OUTPUT"
+          elif [[ "${CURRENT}" == "${RELEASED}" ]]; then
+              echo "The base image has not moved; nothing to rebuild."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "reason=base moved to ${CURRENT}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and dispatch the release
+        if: steps.current.outputs.skip != 'true' && steps.drift.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAST: ${{ steps.current.outputs.last }}
+          COMMIT: ${{ steps.current.outputs.commit }}
+          REASON: ${{ steps.drift.outputs.reason }}
+        run: |
+          # Keep the counter, move the date. The counter is a compatibility
+          # generation and only a human bumps it.
+          COUNTER="${LAST#v}"; COUNTER="${COUNTER%%.*}"
+          BASE="v${COUNTER}.$(date -u +%Y%m%d)"
+          TAG="${BASE}"
+          N=1
+          while git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; do
+              TAG="${BASE}.${N}"; N=$((N + 1))
+          done
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Annotated: the release notes are read from the tag object, and a
+          # lightweight tag has no message to read.
+          git tag -a "${TAG}" "${COMMIT}" -m "$(printf '%s\n\n%s\n%s\n' \
+            "Automated weekly rebuild of ${LAST}." \
+            "Same source, rebuilt against current upstream: ${REASON}." \
+            "No pi-core changes -- see the ${LAST} notes for those.")"
+          git push origin "${TAG}"
+
+          # A tag pushed with GITHUB_TOKEN does not trigger workflows, by
+          # design. workflow_dispatch is the documented exception, so ask for
+          # the release build explicitly, on the tag we just created.
+          gh workflow run build.yml --ref "${TAG}"
+          echo "Dispatched build.yml on ${TAG}"

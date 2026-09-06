@@ -70,11 +70,34 @@ jobs:
               echo "PUBLISH_TAG=${TESTING_TAG}" >> "$GITHUB_ENV"
           fi
 
+      - name: Resolve the base image
+        # Pull first, then read the digest of what was actually pulled. Doing
+        # it this way instead of `skopeo inspect` closes the window where the
+        # floating BASE_TAG moves between the lookup and the build, so the
+        # label records the base this image really has.
+        run: |
+          podman pull --platform="${PLATFORM}" "${BASE_IMAGE}:${BASE_TAG}"
+          echo "BASE_DIGEST=$(podman image inspect --format '{{.Digest}}' \
+            "${BASE_IMAGE}:${BASE_TAG}")" >> "$GITHUB_ENV"
+
       - name: Install just
         uses: extractions/setup-just@v3
 
       - name: Tier 0 - static checks
         run: just test-static
+
+      - name: Work out the version
+        # On a release the tag *is* the version, and taking it from the ref is
+        # exact. `git describe` is not: the weekly rebuild puts a second tag on
+        # a commit that already carries one, and describe then has two equally
+        # valid answers and may pick the older.
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              echo "PI_CORE_VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+          else
+              echo "PI_CORE_VERSION=$(git describe --tags --always 2>/dev/null \
+                || echo unknown)" >> "$GITHUB_ENV"
+          fi
 
       - name: Build image
         run: |
@@ -84,7 +107,8 @@ jobs:
             --build-arg BASE_TAG="${BASE_TAG}" \
             --build-arg FEDORA_RELEASE="${FEDORA_RELEASE}" \
             --build-arg REPO_ORGANIZATION="${REPO_ORGANIZATION}" \
-            --build-arg PI_CORE_VERSION="$(git describe --tags --always 2>/dev/null || echo unknown)" \
+            --build-arg PI_CORE_VERSION="${PI_CORE_VERSION}" \
+            --build-arg BASE_DIGEST="${BASE_DIGEST}" \
             -t "${IMAGE_NAME}:${DEFAULT_TAG}" .
 
       - name: Tier 1 - image assertions
@@ -236,10 +260,11 @@ jobs:
           else
               TAG="image-$(date +%Y%m%d-%H%M)"
           fi
-          # Anything below v1, or carrying -rc, is a prerelease.
+          # A dated release is a real one. Only an -rc, or an untagged manual
+          # image build, is a prerelease.
           PRE=""
           case "$TAG" in
-              v0.*|*-rc*|image-*) PRE="--prerelease" ;;
+              *-rc*|image-*) PRE="--prerelease" ;;
           esac
           # Notes are the annotated tag's message, read from the API rather than
           # left to `gh --notes-from-tag`: that flag silently fell back to the

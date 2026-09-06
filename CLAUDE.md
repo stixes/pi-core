@@ -117,17 +117,34 @@ between releases. A release is a deliberate, separate act:
 3. When something significant has accumulated, *suggest* a release. Cutting one
    is the owner's call, never automatic.
 4. The owner requests it, or approves the suggestion.
-5. `git tag vN.N && git push --tags` — CI **rebuilds that commit**, publishes
-   `:stable`, builds and signs the flashable `.img`, and cuts the release.
+5. `git tag -a v<counter>.<YYYYMMDD> && git push --tags` — CI **rebuilds that
+   commit**, publishes `:stable`, builds and signs the flashable `.img`, and
+   cuts the release. Annotate it: the release notes are read from the tag
+   object, and a lightweight tag has no message to read.
 6. Back to 1.
 
+### Versions are dated, not semantic
+
+`v<counter>.<YYYYMMDD>` — `v1.20260906` — with `.1`, `.2` appended for a second
+release on one day. The shape is Fedora's, and for the same reason: most
+releases are *the same software rebuilt against newer upstream*, which no
+semantic version can honestly describe.
+
+**The counter is a compatibility generation, not a feature number.** Bump it
+only when an existing card cannot upgrade into the new release — when a reflash
+is required. It is expected to sit at 1 for a long time, and only a human moves
+it. `tests/static.sh` refuses to extend any tag that is not in this shape, so an
+`-rc` or a leftover `v0.x` cannot become the base of an automatic release.
+
+A tagged build takes its version **from the ref**, not from `git describe`:
+once the weekly rebuild puts a second tag on a commit that already carries one,
+describe has two valid answers and may give the older.
+
 **The rebuild at step 5 is deliberate, not laziness.** It is what lets a
-release carry content that only exists in a release: `PI_CORE_VERSION` comes
-from `git describe` at build time, so a tagged build bakes `pi-core v0.6` where
-a promoted `:testing` image would still say `v0.5-8-g…`, and an SBOM or
-changelog would work the same way. Promoting the tested digest with `skopeo
-copy` is cheaper and keeps the signature for free, but nothing inside the image
-can then change.
+release carry content that only exists in a release — the version string today,
+an SBOM or changelog later. Promoting the tested digest with `skopeo copy` is
+cheaper and keeps the cosign signature for free, but then nothing inside the
+image can change.
 
 What it costs is worth knowing: **a rebuild of the same commit is not the same
 image.** `BASE_IMAGE` tracks `ucore-minimal:stable` and the dnf installs in
@@ -137,11 +154,35 @@ on hardware. Tiers 0, 1 and 1.5 re-run on it, so it is not unguarded — but
 boot, growth and upgrade behaviour was proven on a different artifact.
 
 So: **after cutting a release, point the Pi at `:stable` and run `just
-test-hardware` before flashing any card from it.** If a release ever surprises
-us, the fix is to resolve the base to a digest at build time and label it, so a
-release build can pin the exact base the tested build used — deliberately not
-done yet, because it would also freeze what the nightly rebuild exists to pick
-up.
+test-hardware` before flashing any card from it.**
+
+### The weekly rebuild
+
+`.github/workflows/weekly.yml` runs Mondays. It rebuilds **the last dated
+release's commit** — never main — against current upstream, so a deployed card
+gets base-image and Fedora security fixes without anyone cutting a feature
+release. It skips the week if the base image digest has not moved, and releases
+anyway if it cannot tell.
+
+It builds nothing itself: it creates the tag and dispatches `build.yml` on it,
+so there is one implementation of "cut a release". A tag pushed with
+`GITHUB_TOKEN` deliberately triggers no workflow; `workflow_dispatch` is the
+documented exception, which is why the dispatch is explicit.
+
+This is the one automatic path to a device, and it is safe for three reasons
+that must all stay true: the source is a commit that was already released, the
+devices run `AutomaticUpdatePolicy=stage` so nothing applies without a reboot
+the owner chooses, and `bootc rollback` covers the reboot that goes wrong.
+Tiers 0, 1 and 1.5 run on it like any other release; hardware acceptance does
+not, so a base-image regression that breaks the boot chain would reach cards.
+That is the residual risk, and it is the reason the rebuild is scoped to
+released source only.
+
+If a release ever surprises us, the next lever is pinning: the base digest is
+already recorded on every image as
+`org.opencontainers.image.base.digest`, so a release could be built against the
+exact base a tested build used. Deliberately not done, because it would also
+freeze what the nightly rebuild exists to pick up.
 
 ## Rules
 

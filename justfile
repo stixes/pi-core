@@ -10,7 +10,12 @@ default:
 
 # Build the image locally for aarch64 (qemu on x86; slow but works)
 build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Pull first so the digest we label is the one we build from, matching CI.
+    podman pull --platform="$PLATFORM" "$BASE_IMAGE:$BASE_TAG"
     podman build --platform="$PLATFORM" \
+        --build-arg BASE_DIGEST="$(podman image inspect "$BASE_IMAGE:$BASE_TAG" | jq -r '.[0].Digest')" \
         --build-arg BASE_IMAGE="$BASE_IMAGE" \
         --build-arg BASE_TAG="$BASE_TAG" \
         --build-arg FEDORA_RELEASE="$FEDORA_RELEASE" \
