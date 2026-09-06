@@ -49,6 +49,12 @@ machine.
   writes under `/etc`, and the deployment's `/etc` is regenerated from presets
   at install time, so a build-time enable is silently dropped. Zincati is
   masked in `/usr` for the same reason.
+
+  The corollary bites when testing: that regeneration happens at *install*, so
+  a machine that upgrades into a new image does not pick up newly-enabled units
+  or a changed `WantedBy=`. It is correct on a fresh flash and stale on an
+  upgraded machine. `systemctl reenable <unit>` reproduces the install
+  behaviour, and is what to reach for before concluding a unit does not work.
 - **The hostname is set by a unit**, not shipped as `/etc/hostname`: podman
   bind-mounts that path during a build and it never reaches the image. It
   writes `/proc/sys/kernel/hostname` too, because systemd reads the file in

@@ -137,6 +137,12 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
   this — `pi-core.conf` + `pi-core-provision`, per-device Ignition rendering,
   and the first-boot rebase — were deleted, not deprecated. Do not reintroduce
   pre-boot configuration; an image handed to a stranger cannot depend on it.
+- **Enablement applies at install, not at upgrade.** A preset is evaluated when
+  the deployment's `/etc` is generated, so a unit added in a new image arrives
+  *disabled* on a machine that upgrades into it, and a changed `WantedBy=` does
+  not take effect either. A fresh flash is unaffected. When testing on a
+  machine that has upgraded, `systemctl reenable <unit>` reproduces what an
+  install would have done — this has caught two changes out already.
 - **What Ignition used to provide, the image must.** The `core` user comes from
   `sysusers.d` (a bare `/etc/passwd` entry fails `bootc container lint`) and
   root growth from `pi-core-growfs.service`, because Fedora CoreOS only grows
