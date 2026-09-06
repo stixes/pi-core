@@ -158,8 +158,9 @@ can close that gap.
 
 ## 8. Known gaps
 
-Tracked here because they are requirements not yet met, not because they are
-ideas:
+Requirements not yet met. Which of them currently hold on hardware is tracked
+in CLAUDE.md's Status section; this list is the requirement side of it, and the
+two should not drift apart.
 
 - **R13 does not extend to installation.** `bootc install` is given
   `--target-no-signature-verification`, because the container policy shipped in
@@ -168,3 +169,10 @@ ideas:
   signatures, which is the larger half of the problem.
 - **R10's rollback half is unexercised.**
 - **R12's `sync` path is unexercised** on hardware; only `check` has run.
+- **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
+  probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
+  two-partition layout, and on a `coreos-installer` install the same entry
+  stops the boot partition being mounted. Supporting it would mean binding
+  `/boot` from a generator that checks for a `boot`-labelled filesystem rather
+  than from fstab. R1 says one install path, so this is recorded rather than
+  planned.

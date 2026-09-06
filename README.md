@@ -3,19 +3,12 @@
 A custom [uCore](https://github.com/ublue-os/ucore) (Fedora CoreOS) bootc image
 for Raspberry Pi, for my personal homelab.
 
-> **Status: runs on a Pi 4.** Boots to a login and a working network
-> unattended, grows the root filesystem to fill the card, resolves over mDNS,
-> and takes a `bootc upgrade` in about 20 seconds. Pi 5 is model-agnostic here
-> but untested, and `bootc rollback` has not been exercised — see
-> [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
+> **Status:** runs on a Pi 4 — boots, updates and grows unattended. What is and
+> is not proven is kept in [CLAUDE.md](CLAUDE.md#status); the checklist that
+> proves it is [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
 
-## Targets
-
-| Model | Status | Notes |
-|---|---|---|
-| **Pi 5 / 500** | primary | **SD card only** — U-Boot has no BCM2712 PCIe, so no NVMe boot, and USB boot does not work either. Serial console is the debug connector (`ttyAMA10`) |
-| **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents. Boots from USB. Serial console is GPIO 14/15 (`ttyAMA0`) |
-| Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship and it may well boot, but 1 GB / 512 MB is below what FCOS plus containers wants |
+Targets **Pi 5 and Pi 4**; Pi 3 and Zero 2 W are out of scope on RAM. Scope and
+the reasons are in [docs/requirements.md](docs/requirements.md#5-scope).
 
 ## How it works
 
@@ -46,11 +39,11 @@ one supported. There is no build-time configuration and nothing to edit on the
 card; a machine is configured after you log into it. Step by step:
 [INSTALL.md](INSTALL.md).
 
-Take the image from the [releases page](../../releases), flash
-`pi-core-*.img.xz` to a card with Raspberry Pi Imager, balenaEtcher, Rufus
-(DD mode) or `dd`, and boot it. The image is pi-core itself, deployed with
-`bootc install`, so first boot needs no network and downloads nothing. Log in as **`core` / `core`**, at the console or
-over SSH at `pi-core.local`.
+Take the image from the [releases page](../../releases) and write
+`pi-core-*.img.xz` to a card with Fedora Media Writer or Rufus, then boot it.
+The image is pi-core itself, deployed with `bootc install`, so first boot needs
+no network and downloads nothing. Log in as **`core` / `core`**, at the console
+or over SSH at `pi-core.local`.
 
 That image enables SSH password authentication and advertises itself over mDNS
 so it can be reached with nothing but a flashed card — which also means the
@@ -157,6 +150,18 @@ publishes and verifies its own image without edits. Override with
 
 You will want your own signing key: `cosign generate-key-pair`, commit the new
 `cosign.pub`, and add the private key as your fork's `SIGNING_SECRET`.
+
+## Provenance
+
+Written by Claude (Anthropic) under my direction, and verified by me.
+
+- **Code and build tooling** — AI-written, human-directed. Every change is
+  gated by the automated tiers before it reaches a card.
+- **Documentation** — AI-written, human-reviewed. The decisions it records are
+  mine; the wording is not.
+- **Hardware verification** — human. No automated tier can reach the boot
+  chain, so every claim here about booting, updating or growing came from a
+  physical Pi rather than from a test suite.
 
 ## License
 

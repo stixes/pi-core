@@ -15,18 +15,13 @@ downloaded, no network needed to get a usable machine.
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
 | Pi 3 / Zero 2 W | not a target | Firmware and DTBs ship, but 1 GB (or less) RAM is below what FCOS plus containers wants. May work; untested, unsupported |
 
-> **Untested on hardware.** Every step below is derived from the Fedora CoreOS
-> Raspberry Pi 4 documentation and from what the built image actually contains,
-> but no one has run it end to end on a real Pi yet. Expect to debug.
-
 ## 0. What you need
 
 - A Raspberry Pi 5 or 4
 - SD card. 8 GB is the floor — a deployment is about 3.5 GB and the root
   filesystem grows to fill whatever you use — but 16 GB or more is worth it,
   since an update stages a second deployment alongside the first
-- A card reader, and any imaging tool: Raspberry Pi Imager, balenaEtcher,
-  Rufus, or `dd`
+- A card reader, and Fedora Media Writer or Rufus to write the image
 - **Recommended: a USB-to-serial (3.3 V TTL) adapter.** If the Pi fails before
   networking comes up, this is the only way to see why.
 
@@ -46,8 +41,14 @@ card will wear out faster than you would like.
 ## 1. Flash the image
 
 Download `pi-core-*.img.xz` from the [releases page](../../releases) and write
-it to the card. Raspberry Pi Imager: "Use custom", pick the file. Rufus needs
-DD/raw mode. Or:
+it to the card.
+
+- **Fedora Media Writer** takes the `.img.xz` directly — select it as a custom
+  image.
+- **Rufus** writes it in DD mode. If your version will not open the `.xz`,
+  decompress it first and write the `.img`.
+
+On Linux, `dd` does the same thing and makes the compression obvious:
 
 ```bash
 xzcat pi-core-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
@@ -59,6 +60,19 @@ Check the download first if you like — `cosign.pub` is in this repository:
 cosign verify-blob --key cosign.pub --signature SHA256SUMS.sig SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
+
+### Alternative: rebasing an existing Fedora CoreOS install
+
+uCore is normally consumed by rebasing a running Fedora CoreOS host onto it,
+following [uCore's own instructions](https://github.com/ublue-os/ucore#installation),
+substituting `ghcr.io/<owner>/pi-core:stable` for the uCore image.
+
+**This is not a supported path here and has not been tested.** The image ships
+an `/etc/fstab` that binds `/boot` and `/var` from inside the root filesystem,
+which is where `bootc install` puts them. A `coreos-installer` install has a
+separate boot partition instead, and that fstab entry is exactly what stops
+Fedora CoreOS mounting it — so a rebased machine would likely come up with an
+empty `/boot`. Flash the image.
 
 ## 2. First boot
 

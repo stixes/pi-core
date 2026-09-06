@@ -19,9 +19,6 @@ reach it:
 Run it end to end on the first hardware attempt, and again whenever the base
 image, kernel, firmware payload or boot configuration changes.
 
-> This checklist has itself never been run. Expect to correct it on first use —
-> that is part of the first run's output.
-
 ## Before you start
 
 ### Pick an observation channel
