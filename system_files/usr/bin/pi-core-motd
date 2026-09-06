@@ -27,11 +27,15 @@ MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)"
 [[ -n "${MODEL}" ]] || MODEL="unknown model"
 
 # `bootc status` knows the image it booted; parse rather than hardcode.
-IMAGE="$(bootc status --format json 2>/dev/null \
-         | grep -oE '"image"[[:space:]]*:[[:space:]]*"[^"]+"' \
-         | grep -oE '[a-z0-9.-]+\.[a-z]+/[^"]+' | head -1 || true)"
-DIGEST="$(bootc status --format json 2>/dev/null \
-          | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
+#
+# Read the *booted* deployment by name. `spec.image` is the target a future
+# upgrade would pull, and it sorts first in the JSON, so a `grep | head -1`
+# reports that instead — which is right only while the two agree. Seen on a
+# Pi 4 booted on :testing with :stable staged: the banner said :stable while
+# the digest beside it was testing's.
+BOOTC_JSON="$(bootc status --format json 2>/dev/null || true)"
+IMAGE="$(jq -r '.status.booted.image.image.image // empty' <<<"${BOOTC_JSON}" 2>/dev/null || true)"
+DIGEST="$(jq -r '.status.booted.image.imageDigest // empty' <<<"${BOOTC_JSON}" 2>/dev/null || true)"
 # ghcr.io/<owner>/pi-core:stable -> <owner>. Empty if bootc could not say, in
 # which case the Issues line is omitted rather than pointing somewhere wrong.
 OWNER=""

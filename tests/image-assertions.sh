@@ -292,6 +292,17 @@ else
     pass "it can run more than once"
 fi
 check "the banner knows about staged deployments" grep -q '/run/ostree/staged-deployment' /usr/bin/pi-core-motd
+# The banner now parses bootc's JSON with jq. If jq ever leaves the base image
+# the parse degrades to "unknown" silently, which is exactly the kind of quiet
+# wrong answer the banner exists to avoid.
+check "jq is present for the banner to parse bootc status" test -x /usr/bin/jq
+# It must name the deployment it is running, not the one it would upgrade into:
+# `spec.image` sorts first in bootc's JSON and is the target, not the truth.
+if grep -q 'status.booted.image' /usr/bin/pi-core-motd; then
+    pass "the banner reads the booted deployment, not spec.image"
+else
+    fail "pi-core-motd does not read .status.booted — it may report the staged image as running"
+fi
 
 head_ "version"
 # `bootc status` reports the image digest, which says nothing to a human about
