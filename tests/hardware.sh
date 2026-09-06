@@ -93,6 +93,36 @@ fi
 echo "      --- firmware drift report ---"
 rc "pi-core-firmware check" | sed 's/^/      /'
 
+head_ "signature verification (requirements.md R13)"
+# The policy only means anything if the origin enforces it.
+SIG=$(rc 'sudo bootc status --format json 2>/dev/null | grep -o "\"signature\":\"[a-zA-Z]*\"" | head -1' || true)
+if [[ "$SIG" == *containerPolicy* ]]; then
+    pass "booted origin enforces the container policy"
+else
+    fail "booted origin signature is '${SIG:-unknown}' — the policy is bypassed"
+fi
+# Evaluates the policy against the registry without staging anything. This is
+# the check that would catch a policy that looks right and rejects everything.
+if rq 'sudo bootc upgrade --check'; then
+    pass "bootc upgrade --check passes the policy"
+else
+    fail "bootc upgrade --check failed — the machine cannot take updates"
+fi
+# A locally modified policy.json is never replaced by an image update, so a fix
+# shipped in a later image would silently never arrive.
+if rq 'sudo ostree admin config-diff 2>/dev/null | grep -q containers/policy.json'; then
+    fail "policy.json is locally modified — image updates to it will never land"
+else
+    pass "policy.json is unmodified, so image updates to it will land"
+fi
+# The only silent failure mode: unattended updates fail into the journal and
+# the machine just stops updating.
+if rq 'systemctl is-failed --quiet rpm-ostreed-automatic.service'; then
+    fail "rpm-ostreed-automatic has failed — unattended updates are not running"
+else
+    pass "rpm-ostreed-automatic is not in a failed state"
+fi
+
 head_ "observations to record"
 echo "      uptime:   $(rc uptime -p)"
 echo "      thermal:  $(rc 'cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo n/a')"

@@ -69,13 +69,28 @@ fi
 head_ "nothing carries an owner (requirements.md R15)"
 # A fork must publish, verify and link to itself without edits. The banner URLs
 # were hardcoded once; this is why they are not now.
-if grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
+if grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core|ghcr\.io/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
    | grep -v 'REPO_ORGANIZATION' | grep -q .; then
     fail "a hardcoded owner is baked into the image:"
-    grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
+    grep -rnE 'github\.com/[A-Za-z0-9_-]+/pi-core|ghcr\.io/[A-Za-z0-9_-]+/pi-core' build_files/ system_files/ scripts/ 2>/dev/null \
         | grep -v 'REPO_ORGANIZATION' | sed 's/^/      /' | head -5
 else
     pass "no hardcoded owner in build_files, system_files or scripts"
+fi
+
+head_ "signing key and policy scope (requirements.md R13)"
+check "cosign.pub present" test -f cosign.pub
+if grep -q 'BEGIN PUBLIC KEY' cosign.pub 2>/dev/null; then
+    pass "it is a PEM public key"
+else
+    fail "cosign.pub is not a PEM public key"
+fi
+# The policy is scoped to ghcr.io/<owner>/pi-core and containers-policy has no
+# wildcard for a path segment, so the owner must reach the build.
+if grep -q 'build-arg REPO_ORGANIZATION' justfile && grep -q 'build-arg REPO_ORGANIZATION' .github/workflows/build.yml; then
+    pass "REPO_ORGANIZATION reaches both the local and CI build"
+else
+    fail "REPO_ORGANIZATION is not passed to the build — the policy scope would be empty"
 fi
 
 head_ "first boot needs no network (requirements.md R3)"

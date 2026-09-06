@@ -7,19 +7,27 @@
 ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-minimal
 ARG BASE_TAG=stable
 ARG FEDORA_RELEASE=44
+# The GHCR namespace, derived by scripts/repo-owner.sh. The signing policy is
+# scoped to ghcr.io/<owner>/pi-core and containers-policy has no wildcard for a
+# path segment, so the owner has to be materialised at build time.
+ARG REPO_ORGANIZATION=
 FROM scratch AS ctx
 COPY build_files /build_files
 COPY system_files /system_files
+# The public half of the signing key, so the image can verify its own updates.
+COPY cosign.pub /cosign.pub
 
 FROM ${BASE_IMAGE}:${BASE_TAG}
 
 # Re-declare inside this stage: an ARG from before the first FROM is not
 # automatically in scope here.
 ARG FEDORA_RELEASE
+ARG REPO_ORGANIZATION
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=tmpfs,dst=/tmp \
-    FEDORA_RELEASE=${FEDORA_RELEASE} /ctx/build_files/build.sh
+    FEDORA_RELEASE=${FEDORA_RELEASE} \
+    REPO_ORGANIZATION=${REPO_ORGANIZATION} /ctx/build_files/build.sh
 
 RUN ["bootc", "container", "lint"]

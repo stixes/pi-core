@@ -179,7 +179,79 @@ cat > /etc/fstab <<'FSTABEOF'
 /sysroot/ostree/deploy/fedora-coreos/var /var none bind 0 0
 FSTABEOF
 
-### 8. Enable units
+### 8. Trust our own signature, so `bootc upgrade` verifies (requirements.md R13)
+#
+# The base image sets enforce-container-sigpolicy, so bootc records the target
+# as ostree-image-signed: and every upgrade consults containers-policy. But
+# upstream's policy answers with a `"" -> insecureAcceptAnything` catch-all
+# under the docker transport: the check runs and accepts anything. This adds
+# the one scope that gives it teeth.
+#
+# Verified on a Pi 4 with negative controls before being written here:
+#   matchRepository accepted; matchExact rejected ("Signature for identity");
+#   a different key rejected; no registries.d rejected ("A signature was
+#   required, but no signature exists").
+#
+# Three things here are non-obvious and each is load-bearing:
+#   - policy.json must be /etc. skopeo and podman have no /usr fallback; only
+#     bootc's own sanity check reads /usr/share, so a policy there would look
+#     installed and verify nothing.
+#   - signedIdentity must be matchRepository. cosign signs the repository
+#     without a tag, and the default matchExact compares it against
+#     ...:stable and fails.
+#   - use-sigstore-attachments defaults to false, so without registries.d
+#     nothing ever fetches the signature. It pairs with CI's
+#     --new-bundle-format=false, which writes the legacy sha256-<digest>.sig
+#     tag that this reads.
+#
+# No Rekor and no Fulcio: a Pi has no battery-backed clock, and time-sensitive
+# verification would turn that into an upgrade failure. A key-only check has no
+# time dependency.
+[[ -n "${REPO_ORGANIZATION}" ]] || {
+    echo "FATAL: REPO_ORGANIZATION is required — the signing policy is scoped to" >&2
+    echo "       ghcr.io/<owner>/pi-core and cannot be wildcarded." >&2
+    exit 1
+}
+install -D -m0644 /ctx/cosign.pub /etc/pki/containers/pi-core.pub
+
+# Edited in place, not shipped whole: uCore and Fedora CoreOS own the other
+# entries and a committed copy would silently freeze them.
+python3 - "${REPO_ORGANIZATION}" <<'PYEOF'
+import json, sys
+
+owner = sys.argv[1]
+path = "/etc/containers/policy.json"
+with open(path) as f:
+    policy = json.load(f)
+
+docker = policy.setdefault("transports", {}).setdefault("docker", {})
+# Removing this would break every workload `podman pull` on the device, so fail
+# the build if upstream drops it rather than inheriting the breakage.
+assert docker.get(""), "upstream dropped the docker catch-all; workload pulls would break"
+
+docker["ghcr.io/%s/pi-core" % owner] = [{
+    "type": "sigstoreSigned",
+    "keyPaths": ["/etc/pki/containers/pi-core.pub"],
+    "signedIdentity": {"type": "matchRepository"},
+}]
+
+with open(path, "w") as f:
+    json.dump(policy, f, indent=4)
+    f.write("\n")
+PYEOF
+
+mkdir -p /etc/containers/registries.d
+cat > "/etc/containers/registries.d/pi-core.yaml" <<REGDEOF
+# Without this containers-image never fetches the cosign attachment and the
+# policy above fails with "no signature exists". Defaults to false; the scope
+# must match the policy scope.
+docker:
+  ghcr.io/${REPO_ORGANIZATION}/pi-core:
+    use-sigstore-attachments: true
+REGDEOF
+echo "::: signature policy scoped to ghcr.io/${REPO_ORGANIZATION}/pi-core"
+
+### 9. Enable units
 # Enablement lives in /usr/lib/systemd/system-preset/10-pi-core.preset, not
 # here: `systemctl enable` writes to /etc, and the deployment's /etc is
 # regenerated from presets at install time, so it would be silently dropped.
@@ -191,7 +263,7 @@ FSTABEOF
 # rpm-ostreed-automatic stages updates instead.
 ln -sf /dev/null /usr/lib/systemd/system/zincati.service
 
-### 9. Cleanup
+### 10. Cleanup
 # Beyond the usual: dnf leaves /run/dnf (nonempty-run-tmp) and per-repo
 # `countme` state under /var/lib/dnf/repos with no tmpfiles.d entry
 # (var-tmpfiles). Both trip bootc container lint.

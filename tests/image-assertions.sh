@@ -184,6 +184,70 @@ else
     fail "ID changed to '$ID_' — that breaks package tooling"
 fi
 
+head_ "container signature policy (requirements.md R13)"
+# Every `bootc upgrade` consults this. Upstream's policy has a
+# `"" -> insecureAcceptAnything` catch-all under docker, so the check runs and
+# accepts anything until a narrower scope is added. Assert the shape, never a
+# literal owner -- a fork must pass these too.
+POLICY=/etc/containers/policy.json
+if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$POLICY" 2>/dev/null; then
+    pass "policy.json parses"
+    if python3 - "$POLICY" <<'PYEOF'
+import json, re, sys
+p = json.load(open(sys.argv[1]))
+ok = True
+def bad(m):
+    global ok
+    print("      %s" % m); ok = False
+
+# bootc refuses to upgrade at all if the top-level default is permissive.
+if p.get("default") != [{"type": "reject"}]:
+    bad("top-level default is %r, expected [{'type':'reject'}]" % p.get("default"))
+docker = p.get("transports", {}).get("docker", {})
+# Removing this breaks every workload podman pull on the device.
+if not docker.get(""):
+    bad("the docker '' catch-all is gone; workload pulls would break")
+scopes = [k for k in docker if re.fullmatch(r"ghcr\.io/[^/]+/pi-core", k)]
+if len(scopes) != 1:
+    bad("expected exactly one ghcr.io/<owner>/pi-core scope, found %r" % scopes)
+else:
+    e = docker[scopes[0]][0]
+    if e.get("type") != "sigstoreSigned":
+        bad("scope type is %r, expected sigstoreSigned" % e.get("type"))
+    # cosign signs the repository without a tag, so matchExact never matches.
+    if e.get("signedIdentity", {}).get("type") != "matchRepository":
+        bad("signedIdentity is %r; matchExact cannot match a tagless signature"
+            % e.get("signedIdentity"))
+    import os
+    for kp in e.get("keyPaths", []) or bad("no keyPaths"):
+        if not os.path.exists(kp):
+            bad("keyPath %s is not in the image" % kp)
+        elif "BEGIN PUBLIC KEY" not in open(kp).read():
+            bad("keyPath %s is not a PEM public key" % kp)
+sys.exit(0 if ok else 1)
+PYEOF
+    then
+        pass "policy shape is correct"
+    else
+        fail "policy shape is wrong (see above)"
+    fi
+else
+    fail "policy.json does not parse"
+fi
+# use-sigstore-attachments defaults to false; without it nothing fetches the
+# signature and the policy above fails with "no signature exists".
+if grep -rqE 'use-sigstore-attachments:[[:space:]]*true' /etc/containers/registries.d/ 2>/dev/null; then
+    pass "registries.d enables sigstore attachments"
+else
+    fail "no registries.d entry — the signature would never be fetched"
+fi
+# The day upstream drops this, the device silently returns to unverified.
+if bootc install print-configuration 2>/dev/null | grep -q '"enforce-container-sigpolicy":true'; then
+    pass "enforce-container-sigpolicy is still set by the base image"
+else
+    fail "enforce-container-sigpolicy is no longer set — upgrades would not consult the policy"
+fi
+
 head_ "login banner"
 check "generator present" test -x /usr/bin/pi-core-motd
 if grep -qE '^enable[[:space:]]+pi-core-motd\.service$' /usr/lib/systemd/system-preset/10-pi-core.preset; then

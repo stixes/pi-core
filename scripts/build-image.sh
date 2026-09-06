@@ -69,10 +69,15 @@ log "installing it to ${LOOP} with bootc"
 #   coreos-installer and never needed bootc to know. Without this bootc stops
 #   with "No root filesystem specified". xfs is what FCOS uses, confirmed on a
 #   running Pi.
-# --target-no-signature-verification: the image's own bootc config sets
-#   enforce-container-sigpolicy, and the policy shipped in it does not yet carry
-#   our cosign key. We verify the image out of band instead; wiring the key into
-#   policy.json is the follow-up that lets this flag go away.
+#
+# Note there is no --target-no-signature-verification here, and its absence
+# changes nothing: bootc 1.16.7 hides the flag and discards it. `bootc install`
+# never verifies a signature in any case, because install_container() pins the
+# source to ContainerPolicyAllowInsecure -- the image comes from local
+# containers-storage, already pulled and verified out of band. What the install
+# does do is record ostree-image-signed: in the deployment origin, because the
+# image sets enforce-container-sigpolicy; the signature policy the image ships
+# is what makes that record mean something on the first `bootc upgrade`.
 sudo podman run --rm --privileged --pid=host \
     --security-opt label=type:unconfined_t \
     -v /dev:/dev -v /var/lib/containers:/var/lib/containers \
@@ -82,7 +87,6 @@ sudo podman run --rm --privileged --pid=host \
         --generic-image \
         --wipe \
         --filesystem xfs \
-        --target-no-signature-verification \
         --karg console=tty0 \
         --karg video=HDMI-A-1:1280x720@60 \
         --karg video=HDMI-A-2:1280x720@60 \

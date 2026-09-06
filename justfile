@@ -14,6 +14,7 @@ build:
         --build-arg BASE_IMAGE="$BASE_IMAGE" \
         --build-arg BASE_TAG="$BASE_TAG" \
         --build-arg FEDORA_RELEASE="$FEDORA_RELEASE" \
+        --build-arg REPO_ORGANIZATION="${REPO_ORGANIZATION:-$(./scripts/repo-owner.sh)}" \
         -t "$IMAGE_NAME:$DEFAULT_TAG" .
 
 # Show what the built image contains

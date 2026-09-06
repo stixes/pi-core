@@ -64,6 +64,7 @@ jobs:
             --build-arg BASE_IMAGE="${BASE_IMAGE}" \
             --build-arg BASE_TAG="${BASE_TAG}" \
             --build-arg FEDORA_RELEASE="${FEDORA_RELEASE}" \
+            --build-arg REPO_ORGANIZATION="${REPO_ORGANIZATION}" \
             -t "${IMAGE_NAME}:${DEFAULT_TAG}" .
 
       - name: Tier 1 - image assertions
