@@ -41,6 +41,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # `git describe --tags` needs tags and history. Without these the
+          # version silently comes out as a bare sha -- which it did, and
+          # shipped, because the edit that was supposed to add this block
+          # was a no-op nobody asserted.
+          fetch-tags: true
+          fetch-depth: 0
 
       - name: Load build parameters
         # $GITHUB_ENV accepts only bare KEY=value lines, so strip comments

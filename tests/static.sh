@@ -93,6 +93,16 @@ else
     fail "REPO_ORGANIZATION is not passed to the build — the policy scope would be empty"
 fi
 
+head_ "the build can compute a version"
+# `git describe --tags` needs tags and history in the *build* job. Without them
+# it falls back to a bare sha and the banner ships without a release version --
+# which happened, because the edit adding this was a silent no-op.
+if awk '/^  build:/,/^  release-image:/' .github/workflows/build.yml | grep -q 'fetch-tags: true'; then
+    pass "the build job's checkout fetches tags"
+else
+    fail "the build job checkout has no fetch-tags — the version would be a bare sha"
+fi
+
 head_ "release stream (only a tag moves :stable)"
 # :stable is what flashed cards track and what the flashable image is built
 # from. If main started publishing it again, every commit would reach every
