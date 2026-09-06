@@ -1,0 +1,21 @@
+[Unit]
+Description=Refresh the pi-core banner when a deployment is staged
+# bootc-status-updated.target is not enough on its own. Its path unit watches
+# /ostree/bootc, which only `bootc` itself writes, so the staged notice fired
+# for a hand-run `bootc upgrade` and stayed silent for the nightly
+# rpm-ostreed-automatic run -- the case the notice exists for. Proven on a Pi 4:
+# rpm-ostree staged a deployment, /ostree/bootc never changed, and the banner
+# was still the one generated at boot.
+#
+# /run/ostree/staged-deployment is written by whatever does the staging, so
+# watching it covers bootc, rpm-ostree and anything else.
+
+[Path]
+# PathChanged, not PathExists: PathExists is level-triggered, and against a
+# oneshot that exits it would re-activate in a tight loop for as long as the
+# deployment stays staged.
+PathChanged=/run/ostree/staged-deployment
+Unit=pi-core-motd.service
+
+[Install]
+WantedBy=paths.target

@@ -10,6 +10,7 @@
 enable pi-core-firmware-check.service
 enable pi-core-hostname.service
 enable pi-core-motd.service
+enable pi-core-motd.path
 enable pi-core-growfs.service
 enable rpm-ostreed-automatic.timer
 enable avahi-daemon.service

@@ -292,6 +292,28 @@ else
     pass "it can run more than once"
 fi
 check "the banner knows about staged deployments" grep -q '/run/ostree/staged-deployment' /usr/bin/pi-core-motd
+
+# The notice is worth having only if it fires for the *automatic* update, which
+# is staged by rpm-ostreed-automatic. bootc-status-updated.target does not
+# cover that: its path unit watches /ostree/bootc, which only bootc writes.
+# Proven on a Pi 4 -- rpm-ostree staged a deployment and the banner never moved.
+MOTD_PATH=/usr/lib/systemd/system/pi-core-motd.path
+if grep -q 'PathChanged=/run/ostree/staged-deployment' "$MOTD_PATH" 2>/dev/null; then
+    pass "a path unit watches the staged-deployment marker itself"
+else
+    fail "no path unit on /run/ostree/staged-deployment — an automatic update would stage silently"
+fi
+# PathExists against a oneshot that exits re-activates in a tight loop.
+if grep -q 'PathExists=' "$MOTD_PATH" 2>/dev/null; then
+    fail "pi-core-motd.path uses PathExists — it would loop for as long as a deployment is staged"
+else
+    pass "it is edge-triggered, so it cannot loop"
+fi
+if grep -qE '^enable[[:space:]]+pi-core-motd\.path$' /usr/lib/systemd/system-preset/10-pi-core.preset; then
+    pass "the path unit is preset-enabled"
+else
+    fail "pi-core-motd.path is not preset-enabled, so it will not run on the installed system"
+fi
 # The banner now parses bootc's JSON with jq. If jq ever leaves the base image
 # the parse degrades to "unknown" silently, which is exactly the kind of quiet
 # wrong answer the banner exists to avoid.

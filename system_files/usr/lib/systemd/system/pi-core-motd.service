@@ -14,7 +14,9 @@ Type=oneshot
 ExecStart=/usr/bin/pi-core-motd
 
 [Install]
-# bootc-status-updated.target fires when a deployment is staged, which is how
-# the staged notice reaches a banner generated at boot. Verified on a Pi 4:
-# the target's activation timestamp moves the moment `bootc upgrade` stages.
+# bootc-status-updated.target covers a hand-run `bootc upgrade` or `switch`.
+# It does NOT cover the nightly rpm-ostreed-automatic run, whose staging never
+# touches /ostree/bootc -- pi-core-motd.path watches the staged-deployment
+# marker for that. Both are kept: the target is the earlier signal when bootc
+# is the one doing the work.
 WantedBy=multi-user.target bootc-status-updated.target
