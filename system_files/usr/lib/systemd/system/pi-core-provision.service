@@ -6,7 +6,15 @@ Documentation=file:///usr/share/pi-core/pi-core.conf.example
 # only way this machine is ever reachable.
 After=local-fs.target NetworkManager.service pi-core-hostname.service
 Wants=NetworkManager.service
-Before=network-online.target multi-user.target
+# Before pi-core-firmware-check, which mounts the same ESP read-only for
+# several seconds while it diffs the overlays directory. A second mount of one
+# block device shares its superblock, so overlapping with it makes *our* mount
+# read-only and the secret wipe silently impossible. Observed on a Pi 4: the
+# check held the ESP from 00:00:15.16 to 00:00:22.86 and this unit ran at
+# 00:00:16.76, inside the window, leaving the credentials on the card.
+# Ordered this way round because this unit is the fast one and may be what
+# brings the network up at all.
+Before=network-online.target multi-user.target pi-core-firmware-check.service
 # Once. The sentinel is in /var so it survives an upgrade, and the condition is
 # here as well as in the script so a provisioned machine costs nothing at boot.
 ConditionPathExists=!/var/lib/pi-core/provisioned

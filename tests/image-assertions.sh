@@ -345,6 +345,16 @@ else
     pass "every value in the shipped template is blank"
 fi
 
+# The wipe is impossible if this overlaps pi-core-firmware-check's read-only
+# mount of the same ESP -- a shared superblock makes our mount read-only too.
+# Proven on a Pi 4 by the credentials surviving a real first-boot run.
+PROV_UNIT=/usr/lib/systemd/system/pi-core-provision.service
+if grep -qE '^Before=.*pi-core-firmware-check\.service' "$PROV_UNIT"; then
+    pass "provisioning is ordered before the firmware check's ESP mount"
+else
+    fail "pi-core-provision may overlap pi-core-firmware-check — secrets would stay on the card"
+fi
+
 head_ "version"
 # `bootc status` reports the image digest, which says nothing to a human about
 # which build they are on.

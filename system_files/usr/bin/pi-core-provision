@@ -239,6 +239,14 @@ done
 # --- wipe secrets ------------------------------------------------------------
 if [[ "${PI_WIPE_SECRETS}" == "1" ]]; then
     SECRET_RE=$(IFS='|'; echo "${SECRETS[*]}")
+    # Belt to the unit ordering's braces: if anything else still has this ESP
+    # mounted read-only, our mount of it is read-only too and the wipe cannot
+    # happen. Try to lift it rather than leave credentials on the card.
+    if [[ ! -w "${CONF}" && "${DRY}" -eq 0 ]] \
+       && findmnt -no OPTIONS --target "${MNT}" 2>/dev/null | grep -qw ro; then
+        log "ESP is mounted read-only; remounting to blank the secrets"
+        mount -o remount,rw "${MNT}" 2>/dev/null || true
+    fi
     if [[ "${DRY}" -eq 1 ]]; then
         log "would: blank secret values in ${CONF_NAME}"
     elif [[ -w "${CONF}" ]]; then
@@ -248,7 +256,7 @@ if [[ "${PI_WIPE_SECRETS}" == "1" ]]; then
         sync
         log "blanked secret values in ${CONF_NAME}"
     else
-        warn "cannot write ${CONF_NAME}; secrets left in place"
+        warn "cannot write ${CONF_NAME} (read-only filesystem?); the credentials in it are still on the card"
     fi
 fi
 
