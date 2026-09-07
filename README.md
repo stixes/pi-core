@@ -57,39 +57,51 @@ Then configure it in place: `hostnamectl set-hostname`, add your key, and set
 `PasswordAuthentication no` in `/etc/ssh/sshd_config.d/10-pi-core-passwords.conf`
 to close that window for good.
 
-## Usage
+## Why this exists, and what it took
 
-```bash
-just                        # list recipes
-just build                  # build locally (qemu on x86; slow but works)
-just test                   # fast static checks (~5 s, no build)
-just ci                     # push the branch; CI builds + tests on arm64
-just inspect                # sanity-check the built image
-just image                  # build the flashable .img that gets published
-just test-supply-chain      # verify the published image's signature
-just test-hardware <host>   # assertions against a booted Pi, over SSH
-```
+A Raspberry Pi makes a good always-on container host and a bad one to
+administer. The usual images are mutable: state accumulates, upgrades are
+in-place and irreversible, and a card that has run for a year cannot be
+reproduced. Fedora CoreOS answers all of that — immutable, atomically updated,
+rollback-capable — and uCore adds the server pieces on top.
 
-`just image` must run **on the host, not in Toolbx** — root in a container maps
-to a different UID and corrupts ownership on the ESP. It also needs `sudo`, for
-loop devices and mounting the image's EFI partition.
+Neither boots on a Pi. The Pi's boot ROM is not UEFI, and Fedora's aarch64
+images assume it is. Everything below is what closing that gap actually costs;
+`docs/design-decisions.md` has the reasoning and the failure that produced each
+one.
 
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `pi-core.env` | Build parameters. Bare `KEY=value` only — three parsers read it |
-| `justfile` | Every entry point |
-| `Containerfile` | `FROM ucore-minimal:stable`, runs `build.sh` |
-| `build_files/build.sh` | Package installs + the firmware stash |
-| `system_files/` | Overlay copied to `/` (the `pi-core-firmware` helper and its unit) |
-| `scripts/build-image.sh` | `bootc install` + firmware -> the published `.img` |
-| `scripts/repo-owner.sh` | Derives the GHCR owner; never hardcoded |
-| `tests/` | static / image / supply-chain / hardware tiers |
-| `docs/requirements.md` | What the image has to do, and how each requirement is checked |
-| `docs/design-decisions.md` | Why the code looks the way it does |
-| `docs/hardware-acceptance.md` | The checklist a real Pi must pass |
-| `.github/workflows/build.yml` | Build, test, sign, push to GHCR (arm64 runner) |
+- **The boot chain has an extra two links.** The Pi firmware and U-Boot go at
+  the *root* of the ESP, and `config.txt` chainloads U-Boot, whose EFI layer
+  then presents something GRUB can boot from — see the diagram above.
+- **Firmware updates fall outside bootc entirely**, because `bootupd` does not
+  manage the ESP root. That one is big enough to have its own section below.
+- **Six things Ignition used to do, the image now does.** Fedora CoreOS's own
+  bootc config assumes an Ignition firstboot follows the install, and with
+  `bootc install` none does. So `/var` and `/boot` are bound from the stateroot
+  by `/etc/fstab`, units are enabled by a systemd *preset* rather than
+  `systemctl enable`, the hostname is set by a unit, the root filesystem is
+  grown by one, and GRUB's `bootuuid.cfg` is stamped at image-build time. Every
+  one was found by a Pi that would not boot, and every one is asserted by a
+  test so removing it fails the build instead of a machine.
+- **The device-tree payload had to be cut.** The kernel ships 2386 DTBs for
+  every aarch64 board Fedora supports, all copied into `/boot` per deployment —
+  56–83 MB each, in a 384 MB boot partition bootc will not resize. A real Pi
+  failed to stage an update with `Copying rk3588-armsom-sige7.dtb: No space
+  left on device`. Keeping only Broadcom brings a deployment to about 110 MB,
+  so two fit.
+- **Kernel arguments cannot come from `config.txt`.** Once U-Boot hands off,
+  GRUB owns the command line and builds it from the BLS entry, so
+  `console=tty0` and the console resolution caps are install-time kargs.
+  Editing `cmdline.txt` changes nothing, which is a convincing dead end because
+  the file is right there on a partition any laptop can mount.
+- **Fedora CoreOS cannot be found on a network.** It ships no mDNS responder at
+  all, so `avahi`, `nss-mdns` and `authselect enable-feature with-mdns4` are
+  added — otherwise reaching a headless first boot means reading DHCP leases
+  off a router you may not administer.
+- **The image verifies its own updates.** `cosign.pub` ships inside it and the
+  container policy is scoped to this repository, so `bootc upgrade` checks a
+  signature. `bootc install` never does, by design, which is why the release
+  carries a signed `SHA256SUMS` instead.
 
 ## Testing
 

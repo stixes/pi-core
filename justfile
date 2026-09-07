@@ -32,7 +32,7 @@ inspect:
         echo "== firmware stash =="; ls -1 /usr/lib/pi-core/firmware; \
         echo "== versions =="; cat /usr/lib/pi-core/firmware/.versions'
 
-# Build the flashable pi-core .img that gets published
+# Build the flashable pi-core .img (host only, never Toolbx; needs sudo)
 image:
     ./scripts/build-image.sh
 
