@@ -78,8 +78,8 @@ Each has an ID so tests and commit messages can name it.
     blanked after they are applied.
 
   *Verified: `tests/provision.sh` (tier 0, including that a value containing
-  `$(...)` is not executed); `tests/image-assertions.sh` for shipping and
-  enablement.*
+  `$(...)` is not executed); `tests/image-assertions.sh` for shipping,
+  enablement, and that the wifi backend and brcmfmac firmware are present.*
 
 ### Reachability
 

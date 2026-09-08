@@ -87,6 +87,13 @@ else
 fi
 grep -E '^hosts:' /etc/nsswitch.conf
 
+### Onboard wifi
+#
+# ucore-minimal ships neither the brcmfmac firmware (BCM43455 on Pi 3/4/5) nor
+# NetworkManager's wifi backend, so wlan0 never appears and pi-core-provision
+# skips PI_WIFI_SSID. NetworkManager-wifi pulls wpa_supplicant.
+dnf5 install -y NetworkManager-wifi brcmfmac-firmware
+
 ### 4. The core user
 #
 # Ignition created this on the old installer image. A pre-rebased image has no
