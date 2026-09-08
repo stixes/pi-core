@@ -390,6 +390,11 @@ for b in growpart xfs_growfs; do
     check "$b present" command -v "$b"
 done
 
+head_ "wifi (R20 promises PI_WIFI_SSID joins a network)"
+check "NetworkManager-wifi installed" rpm -q NetworkManager-wifi
+check "brcmfmac firmware installed" rpm -q brcmfmac-firmware
+check "BCM43455 blob present" test -e /usr/lib/firmware/brcm/brcmfmac43455-sdio.bin.xz
+
 head_ "mDNS (INSTALL.md promises <host>.local resolves)"
 # The inverse of the guard this repo used to carry: .local resolving is now a
 # promise, so losing the responder has to fail the build rather than quietly
