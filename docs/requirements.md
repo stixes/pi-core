@@ -196,13 +196,25 @@ aarch64 only, asserted at build time.
 - **Fleet management, provisioning servers, config management.** pi-core
   produces a host; what runs on it is not its concern.
 - **A desktop.** No display manager, no graphical target.
-- **NVMe boot on Pi 5** — under investigation, and the reason previously given
-  here was wrong. The Pi's own firmware boots NVMe fine; the question is
-  whether U-Boot can carry on from it. Our shipped U-Boot 2026.04 *does*
-  contain the `brcm,bcm2712-pcie` compatible and the `nvme` commands, but
-  `boot_targets` is `mmc usb pxe dhcp`, so nothing scans NVMe automatically.
-  Whether the controller probes, and whether the NVMe-over-PCI transport is
-  built in at all, is untested.
+- **NVMe boot on Pi 5** — two blockers, and one of them is ours. The reason
+  given here originally was wrong and is worth not repeating: it is not that
+  U-Boot lacks PCIe. Our shipped U-Boot 2026.04 carries the
+  `brcm,bcm2712-pcie` compatible, the `pcie_brcm` driver, the `nvme` command
+  set and a `u-boot,bootdev-nvme` bootdev, and its `preboot` runs
+  `pci enum; usb start; nvme scan`, so the device is enumerated. What does not
+  happen is booting from it: `bootcmd` is `bootflow scan`, and bootstd builds
+  its scan order from `boot_targets`, which is `mmc usb pxe dhcp`.
+
+  Before any of that matters, the Pi 5's PCIe connector is disabled by the
+  firmware unless `config.txt` says `dtparam=pciex1`, and ours does not — so
+  today there would be nothing for U-Boot to find even if the order allowed it.
+  Neither half has been tried on hardware.
+
+- **USB boot on Pi 5** — not an open question. Our U-Boot contains no RP1
+  support whatsoever (the string `rp1` does not occur in the binary) and the Pi
+  5's XHCI controller sits behind the RP1 southbridge, so `usb start` finds
+  nothing. The same fact is why `rp1_pci` being absent from the generic
+  initramfs costs nothing for an SD root and would be fatal for a USB one.
 
 ## 6. Constraints
 

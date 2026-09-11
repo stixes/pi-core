@@ -212,10 +212,12 @@ One `bcm283x-firmware` pull covers Pi 3/4/5, so the *payload* is model-agnostic
 and there is no cost to shipping it whole. Targeting is a separate decision:
 
 - **Pi 5** — U-Boot 2026.04 carries `brcm,bcm2712` including `bcm2712-sdhci`,
-  and the image's kernel has `rp1_pci`, `clk-rp1` and `pinctrl-rp1`, so the SD
-  boot path and the RP1 southbridge are both present. NVMe is unresolved: the
-  Pi's own firmware boots it, but `boot_targets` is `mmc usb pxe dhcp`, so
-  U-Boot never scans it. See requirements.md §5.
+  and the image's kernel has `rp1_pci`, `clk-rp1`, `pinctrl-rp1` and `macb`
+  with the autoload aliases they need, so the SD boot path and the RP1
+  southbridge are both present. SD stays the only medium for two separate
+  reasons: U-Boot enumerates NVMe in `preboot` but never boots from it, and it
+  has no RP1 driver at all, so on this board it cannot see USB. See
+  requirements.md §5.
 - **Pi 4** — the model Fedora CoreOS actually documents; kept as the reference
   path.
 - **Pi 3 / Zero 2 W** — cannot boot the image, which is a firmer reason than

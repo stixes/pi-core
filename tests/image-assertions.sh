@@ -21,7 +21,8 @@ ARCH=$(rpm -E '%{_arch}')
 if [[ "$ARCH" == "aarch64" ]]; then pass "rpm arch is aarch64"; else fail "rpm arch is $ARCH, expected aarch64"; fi
 
 head_ "firmware stash"
-for f in rpi-u-boot.bin start4.elf fixup4.dat config.txt bcm2711-rpi-4-b.dtb overlays .versions; do
+for f in rpi-u-boot.bin start4.elf fixup4.dat config.txt bcm2711-rpi-4-b.dtb \
+         bcm2712-rpi-5-b.dtb overlays .versions; do
     if [[ -e "$FW/$f" ]]; then pass "$f present"; else fail "$f MISSING from $FW"; fi
 done
 # Fedora's config.txt points the firmware at U-Boot under this exact name; if
@@ -44,6 +45,14 @@ for k in framebuffer_width framebuffer_height; do
     check "config.txt sets $k" grep -qE "^${k}=" "$FW/config.txt"
 done
 
+# One bcm283x-firmware pull is what makes a single payload cover Pi 3/4/5, and
+# the per-model sections are how the firmware picks the right settings. Losing
+# either is silent: a Pi 4 would still boot.
+check "bcm2712 (Pi 5) firmware was installed" grep -q '^bcm2712-firmware' "$FW/.versions"
+for section in pi4 pi5; do
+    check "config.txt keeps its [$section] section" grep -qE "^\[${section}\]" "$FW/config.txt"
+done
+
 head_ "kernel device trees (Pi 3 / 4 / 5 coverage)"
 shopt -s nullglob
 MODDIRS=(/usr/lib/modules/*/)
@@ -51,6 +60,29 @@ KVER=$(basename "${MODDIRS[0]:-none}")
 for dtb in bcm2837-rpi-3-b-plus.dtb bcm2711-rpi-4-b.dtb bcm2712-rpi-5-b.dtb; do
     if [[ -e "/usr/lib/modules/$KVER/dtb/broadcom/$dtb" ]]; then pass "$dtb"; else fail "$dtb missing from kernel $KVER"; fi
 done
+
+head_ "Pi 5 enablement (RP1, and the card reader)"
+# Ethernet and USB on a Pi 5 both hang off the RP1 southbridge, and its card
+# reader is brcmstb where the Pi 4's is iproc. All of these are modules in the
+# base image's kernel, so a base bump can drop one without anything else here
+# noticing — and the first symptom would be a Pi 5 with no network.
+for m in rp1_pci clk-rp1 pinctrl-rp1 macb sdhci-brcmstb; do
+    check "$m present" modinfo -k "$KVER" "$m"
+done
+# rp1_pci binds by PCI ID, not by device tree, so the alias is what loads it.
+if grep -q '^alias pci:v00001DE4d00000001' "/usr/lib/modules/$KVER/modules.alias"; then
+    pass "rp1_pci autoloads on 1de4:0001"
+else
+    fail "no autoload alias for RP1 (1de4:0001) — a Pi 5 would come up with no ethernet"
+fi
+# Root is on the card, so this one has to be in the initramfs as well as in
+# /usr/lib/modules. It is only there because 20-bootc-base.conf sets
+# hostonly=no; a hostonly initramfs built anywhere but a Pi 5 would omit it.
+if lsinitrd "/usr/lib/modules/$KVER/initramfs.img" 2>/dev/null | grep -q 'sdhci-brcmstb'; then
+    pass "sdhci-brcmstb is in the initramfs"
+else
+    fail "sdhci-brcmstb missing from the initramfs — a Pi 5 could not mount its root"
+fi
 
 head_ "device trees are pruned to Broadcom"
 # 2386 DTBs at ~80 MB per deployment does not fit twice in a 384 MB /boot, and

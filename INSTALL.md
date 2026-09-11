@@ -34,9 +34,12 @@ ostree deployments are write-heavy and none of this is write-tuned, so an SD
 card will wear out faster than you would like.
 
 - **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM.
-- **Pi 5: SD card only.** U-Boot 2026.04 has no BCM2712 PCIe support, so NVMe
-  is not a boot option, and USB boot is not working in Fedora's Pi 5 support
-  either. Use a good endurance-rated card and expect to replace it.
+- **Pi 5: SD card only.** Not for want of PCIe support — the U-Boot we ship
+  carries the BCM2712 PCIe driver and the `nvme` commands — but nothing puts
+  NVMe in the boot order, and `config.txt` never enables the slot. USB is a
+  firmer no: that U-Boot has no RP1 driver at all, and the Pi 5's USB hangs off
+  RP1. Mechanism in [requirements.md](docs/requirements.md) §5. Use a good
+  endurance-rated card and expect to replace it.
 
 ## 1. Flash the image
 
