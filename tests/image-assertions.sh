@@ -78,7 +78,16 @@ fi
 # Root is on the card, so this one has to be in the initramfs as well as in
 # /usr/lib/modules. It is only there because 20-bootc-base.conf sets
 # hostonly=no; a hostonly initramfs built anywhere but a Pi 5 would omit it.
-if lsinitrd "/usr/lib/modules/$KVER/initramfs.img" 2>/dev/null | grep -q 'sdhci-brcmstb'; then
+#
+# Listed into a variable rather than piped into `grep -q`: this file runs under
+# `set -o pipefail`, and grep -q exits at its first match, which kills lsinitrd
+# with SIGPIPE and makes the pipeline report 141. That reads as "the module is
+# missing" when the module is right there. Keeping the two apart also lets an
+# unreadable initramfs say so instead of hiding behind the same message.
+INITRD="/usr/lib/modules/$KVER/initramfs.img"
+if ! INITRD_LIST=$(lsinitrd "$INITRD" 2>&1); then
+    fail "could not list $INITRD: $(head -1 <<<"$INITRD_LIST")"
+elif grep -q 'sdhci-brcmstb' <<<"$INITRD_LIST"; then
     pass "sdhci-brcmstb is in the initramfs"
 else
     fail "sdhci-brcmstb missing from the initramfs — a Pi 5 could not mount its root"
