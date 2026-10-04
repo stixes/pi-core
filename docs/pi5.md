@@ -129,8 +129,8 @@ the tree's `compatible` strings rather than its filename:
 
 ```bash
 # on the ESP, or on any copy of the tree
-grep -a -o 'bcm2712[cd]0-pinctrl' bcm2712d0-rpi-5-b.dtb     # expect bcm2712d0-pinctrl
-grep -a -c 'clk_rp1_xosc'          bcm2712d0-rpi-5-b.dtb     # expect 1, not 0
+grep -ao 'bcm2712[cd]0-pinctrl' bcm2712d0-rpi-5-b.dtb | sort -u   # bcm2712d0-pinctrl
+grep -ac 'clk_rp1_xosc'        bcm2712d0-rpi-5-b.dtb            # 1, not 0
 ```
 
 `build.sh` does exactly those two greps before copying each tree, and fails the
