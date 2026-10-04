@@ -211,15 +211,14 @@ losing the responder now fails the build.
 One `bcm283x-firmware` pull covers Pi 3/4/5, so the *payload* is model-agnostic
 and there is no cost to shipping it whole. Targeting is a separate decision:
 
-- **Pi 5** — U-Boot 2026.04 carries `brcm,bcm2712` including `bcm2712-sdhci`,
-  and the image's kernel has `rp1_pci`, `clk-rp1`, `pinctrl-rp1` and `macb`
-  with the autoload aliases they need. The SD boot path works — a Pi 5 has
-  reached a login prompt on it. The RP1 southbridge does **not**: the driver
-  ships but will not bind against the device tree the firmware hands us, so
-  that board has no ethernet and no USB. See requirements.md §8; it is a
-  device-tree problem, not a missing-driver one. SD stays the only medium for
-  two further reasons: U-Boot enumerates NVMe in `preboot` but never boots from
-  it, and it has no RP1 driver at all, so it cannot see USB either.
+- **Pi 5** — works, and did not at first. U-Boot 2026.04 carries
+  `brcm,bcm2712` including `bcm2712-sdhci`, and the kernel has `rp1_pci`,
+  `clk-rp1`, `pinctrl-rp1` and `macb`, but shipping the drivers was not enough:
+  the device tree the firmware hands the kernel describes RP1 the downstream
+  way, so the driver would not bind and the board had no ethernet and no USB.
+  The image now replaces those trees; see *Pi 5 gets the kernel's device trees*
+  below. SD is still the only medium: U-Boot enumerates NVMe in `preboot` but
+  never boots from it, and it has no RP1 driver at all, so it cannot see USB.
 - **Pi 4** — the model Fedora CoreOS actually documents; kept as the reference
   path.
 - **Pi 3 / Zero 2 W** — cannot boot the image, which is a firmer reason than
@@ -232,6 +231,41 @@ and there is no cost to shipping it whole. Targeting is a separate decision:
 
   The lesson generalises: *the image* is model-agnostic, *the disk layout* is
   not. Both had to be checked and only one of them had been.
+
+## Pi 5 gets the kernel's device trees, under the firmware's filenames
+
+`rp1_pci` binds against a device-tree description of RP1's children. The
+firmware's `bcm2712*` trees do not carry one — no `clk_rp1_xosc`, no
+`pci-ep-bus` — so on a Pi 5 the driver probes `-EINVAL`, and since ethernet and
+USB both hang off RP1 the board reaches a login prompt with neither. It looks
+exactly like a machine that failed to boot. The kernel ships trees for the same
+boards *with* those nodes, so the build overwrites the stashed firmware copies
+with them.
+
+Two decisions inside that are easy to get wrong, and one of them was:
+
+**Replaced under the firmware's own filenames, not selected with
+`device_tree=`.** The firmware picks the tree by board revision, and
+`config.txt` has no conditional for the silicon stepping — so no single
+`device_tree=` filename can serve both. Overwriting by name keeps the
+firmware's own selection working and the mechanism invisible.
+
+**The stepping pairing is load-bearing.** `bcm2712-rpi-5-b.dtb` is C0 silicon
+and `bcm2712d0-rpi-5-b.dtb` is D0; a Pi 5 Rev 1.1 is D0. Handing D0 silicon the
+C0 tree does not degrade gracefully — `gpio_keys` probes the power button,
+pinctrl writes a pull-config register at the C0 offset, and the board takes a
+fatal SError in `brcmstb_pull_config_set` about three seconds in. That is how
+this was found, and it is why `build.sh` greps each tree for its expected
+stepping before copying it rather than trusting the filename.
+
+What it costs: the ESP now carries *kernel* artifacts, so a kernel bump makes
+the stash and the ESP diverge. `pi-core-firmware check` already reports that
+and `sync` already applies it — the machinery is unchanged, it just fires far
+more often than when the stash only moved with a firmware package.
+
+The Pi 4 is deliberately untouched. Fedora's `[pi4] dtoverlay=upstream-pi4`
+already converts its downstream tree, and that is the one path proven in the
+field; tier 1 fails if the Pi 4 tree ever gets replaced too.
 
 ## aarch64 only, asserted at build time
 

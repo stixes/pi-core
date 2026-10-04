@@ -247,19 +247,20 @@ freeze what the nightly rebuild exists to pick up.
 
 ## Status
 
-Runs on a Raspberry Pi 4. A flashed card boots to a login and a working network
-unattended, `bootc upgrade` applies a new image in about 20 seconds and reboots
-into it, `bootc rollback` returns to the previous deployment and back again,
+Runs on a Raspberry Pi 4 and, since 2026-10-04, a Pi 5 Model B. A flashed card
+boots to a login and a working network unattended, `bootc upgrade` applies a
+new image in about 20 seconds and reboots into it, `bootc rollback` returns to the previous deployment and back again,
 the root filesystem grows to fill the card, `<hostname>.local` resolves, and
 upgrades verify our cosign signature. Builds, lints clean, publishes and signs.
 
+The Pi 5 took two device-tree fixes to get there and still has gaps — no
+wireless, no power button, no thermal zones, and Pi 500 / CM5 are not covered
+at all. `docs/requirements.md` §8 lists them; `design-decisions.md` explains
+why the image replaces the bcm2712 device trees and why the silicon stepping
+is load-bearing. Shipping the RP1 drivers was never the hard part.
+
 Not yet proven, and worth saying so rather than implying otherwise:
 
-- **Pi 5.** It boots — firmware, U-Boot, GRUB, kernel, systemd, login prompt,
-  all of it — and then has no ethernet and no USB, because `rp1_pci` will not
-  bind against the firmware's device tree, and wedges a few seconds later in a
-  `vc4-drm` probe loop. Measured 2026-09-07; requirements.md §8 has the
-  mechanism and the candidate fix. Do not read "model-agnostic" as "works".
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
   first boot since it was fixed.

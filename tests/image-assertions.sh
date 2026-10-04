@@ -53,20 +53,43 @@ for section in pi4 pi5; do
     check "config.txt keeps its [$section] section" grep -qE "^\[${section}\]" "$FW/config.txt"
 done
 
-head_ "Pi 5 device tree (the firmware's does not describe RP1)"
-# The firmware's bcm2712-rpi-5-b.dtb describes RP1 the downstream way, so
-# rp1_pci probes with -EINVAL and a Pi 5 comes up with no ethernet and no USB.
-# We ship the kernel's copy and point [pi5] at it. docs/requirements.md §8.
-check "upstream Pi 5 DTB is stashed" test -e "$FW/upstream-bcm2712-rpi-5-b.dtb"
-check "config.txt selects it for [pi5]" grep -qE '^device_tree=upstream-bcm2712-rpi-5-b\.dtb$' "$FW/config.txt"
-check "the downstream vc4 pi5 overlay is off" grep -qE '^#dtoverlay=vc4-kms-v3d-pi5' "$FW/config.txt"
-# The point of shipping it is these two nodes. A DTB without them would pass
-# every check above and fix nothing, which is exactly the failure to guard.
-if grep -qa 'clk_rp1_xosc' "$FW/upstream-bcm2712-rpi-5-b.dtb" \
-   && grep -qa 'pci-ep-bus' "$FW/upstream-bcm2712-rpi-5-b.dtb"; then
-    pass "the stashed DTB describes RP1 (clk_rp1_xosc + pci-ep-bus)"
+head_ "Pi 5 device trees (the firmware's describe no RP1)"
+# The stashed bcm2712 Model B trees are the kernel's, not the firmware's: the
+# firmware's carry no RP1 description, so rp1_pci probes -EINVAL and a Pi 5
+# comes up with no ethernet and no USB. docs/requirements.md §8.
+#
+# Stepping matters and is not cosmetic -- a C0 tree on D0 silicon panics the
+# kernel in brcmstb_pull_config_set with a fatal SError. Assert the pairing.
+pi5_dtb() {  # <stash name> <expected stepping>
+    local f="$FW/$1" stepping="$2"
+    if [[ ! -e "$f" ]]; then fail "$1 missing from $FW"; return; fi
+    if ! grep -qa 'clk_rp1_xosc' "$f" || ! grep -qa 'pci-ep-bus' "$f"; then
+        fail "$1 has no RP1 description — it is still the firmware's tree"
+        return
+    fi
+    if ! grep -qa "bcm2712${stepping}-pinctrl" "$f"; then
+        fail "$1 is not ${stepping} silicon — wrong stepping panics the kernel"
+        return
+    fi
+    pass "$1 is the kernel's ${stepping} tree, with RP1"
+}
+pi5_dtb bcm2712-rpi-5-b.dtb   c0
+pi5_dtb bcm2712d0-rpi-5-b.dtb d0
+pi5_dtb bcm2712-d-rpi-5-b.dtb d0
+# Pi 4 must keep its downstream tree: `[pi4] dtoverlay=upstream-pi4` converts
+# it, and that path is the one model proven in the field.
+if grep -qa 'clk_rp1_xosc' "$FW/bcm2711-rpi-4-b.dtb"; then
+    fail "the Pi 4 tree was replaced too — upstream-pi4 expects the downstream one"
 else
-    fail "the stashed Pi 5 DTB has no RP1 description — shipping it fixes nothing"
+    pass "the Pi 4 tree is untouched"
+fi
+check "the downstream vc4 pi5 overlay is off" grep -qE '^#dtoverlay=vc4-kms-v3d-pi5' "$FW/config.txt"
+# device_tree= would defeat the firmware's own per-revision selection, which is
+# what picks the right stepping. If it comes back, the stepping bug comes back.
+if grep -qE '^device_tree=' "$FW/config.txt"; then
+    fail "config.txt sets device_tree=, which overrides per-revision selection"
+else
+    pass "no device_tree= override; the firmware still picks by board revision"
 fi
 
 head_ "kernel device trees (Pi 3 / 4 / 5 coverage)"
