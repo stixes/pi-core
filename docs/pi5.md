@@ -85,11 +85,23 @@ and downstream overlays would not apply cleanly to an upstream tree anyway.
 kernel's, **under the firmware's own filenames**, and disables the `[pi5]`
 display overlay.
 
-| firmware filename | stepping | replaced with (from the kernel) |
-|---|---|---|
-| `bcm2712-rpi-5-b.dtb` | C0 | `bcm2712-rpi-5-b.dtb` |
-| `bcm2712d0-rpi-5-b.dtb` | D0 | `bcm2712-d-rpi-5-b.dtb` |
-| `bcm2712-d-rpi-5-b.dtb` | D0 | `bcm2712-d-rpi-5-b.dtb` |
+| firmware filename | replaced with (from the kernel) |
+|---|---|
+| `bcm2712-rpi-5-b.dtb` | `bcm2712-d-rpi-5-b.dtb` (D0) |
+| `bcm2712d0-rpi-5-b.dtb` | `bcm2712-d-rpi-5-b.dtb` (D0) |
+| `bcm2712-d-rpi-5-b.dtb` | `bcm2712-d-rpi-5-b.dtb` (D0) |
+
+**One tree under every name, on purpose.** The obvious mapping — match each
+file to the stepping its name implies — is what the first attempt shipped, and
+it panicked a board. The firmware picks the tree by board revision, and the
+rule is not readable from the filenames: a D0 Rev 1.1 was handed the file named
+`bcm2712-rpi-5-b.dtb`, so a correctly-C0 tree under a C0-looking name still
+reached D0 silicon and faulted. Putting one tree under every name a Pi 5 Model B
+might be handed removes the need to know the rule.
+
+The cost is real and deliberate: a genuine **C0** Pi 5 is now handed a D0 tree
+and will panic, where before it merely lost networking. D0 is the only silicon
+this has ever run on, so that is the trade — not a claim that C0 works.
 
 The Pi 4 tree is deliberately untouched, and tier 1 fails if it is ever
 replaced too.

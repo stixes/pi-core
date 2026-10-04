@@ -69,10 +69,23 @@ CFGEOF
 # that wrong is not subtle: a C0 tree on D0 silicon panics the kernel in
 # brcmstb_pull_config_set with a fatal SError, which is how this was found.
 #
-# So the mapping is by stepping, and it is checked rather than assumed:
-#   firmware bcm2712-rpi-5-b.dtb   (C0) <- kernel bcm2712-rpi-5-b.dtb   (C0)
-#   firmware bcm2712d0-rpi-5-b.dtb (D0) <- kernel bcm2712-d-rpi-5-b.dtb (D0)
-#   firmware bcm2712-d-rpi-5-b.dtb (D0) <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+# Every Pi 5 Model B filename gets the SAME tree -- the kernel's D0 one:
+#   firmware bcm2712-rpi-5-b.dtb   <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+#   firmware bcm2712d0-rpi-5-b.dtb <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+#   firmware bcm2712-d-rpi-5-b.dtb <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+#
+# Not a stepping-matched mapping, which is what the first attempt shipped and
+# what panicked a board. The firmware chooses the tree by board revision and
+# the rule it uses is not one we can read off the filenames: a D0 Rev 1.1 was
+# handed the file named `bcm2712-rpi-5-b.dtb`, so a C0 tree under a C0-looking
+# name still reached D0 silicon and faulted in brcmstb_pull_config_set.
+#
+# Putting one tree under every name we might be asked for removes the need to
+# know the rule at all. The cost is explicit and is recorded in
+# docs/requirements.md section 5: a genuine C0 Pi 5 would now be handed a D0
+# tree and would panic rather than merely lose networking. D0 is the only
+# silicon anyone has booted this on, so that is the trade taken deliberately;
+# it is not a claim that C0 works.
 #
 # Pi 500 and the CM5 variants keep their downstream trees: the kernel ships no
 # upstream equivalent, so they keep the RP1 bug. Pi 4 is untouched on purpose --
@@ -120,7 +133,7 @@ replace_dtb() {  # <stash name> <kernel name> <expected stepping>
     cp "${src}" "${FW_STASH}/${want}"
     echo "::: ${want} <- ${src} (${stepping})"
 }
-replace_dtb bcm2712-rpi-5-b.dtb   bcm2712-rpi-5-b.dtb   c0
+replace_dtb bcm2712-rpi-5-b.dtb   bcm2712-d-rpi-5-b.dtb d0
 replace_dtb bcm2712d0-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb d0
 replace_dtb bcm2712-d-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb d0
 

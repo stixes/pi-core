@@ -85,7 +85,10 @@ pi5_dtb() {  # <stash name> <expected stepping>
     fi
     pass "$1 is the kernel's ${stepping} tree, with RP1 and no ${other}"
 }
-pi5_dtb bcm2712-rpi-5-b.dtb   c0
+# All three carry the D0 tree, deliberately: the firmware's choice of file is
+# not predictable from the filename, so every name a Pi 5 Model B might be
+# handed has to hold a tree that is right for the silicon we support.
+pi5_dtb bcm2712-rpi-5-b.dtb   d0
 pi5_dtb bcm2712d0-rpi-5-b.dtb d0
 pi5_dtb bcm2712-d-rpi-5-b.dtb d0
 # Pi 4 must keep its downstream tree: `[pi4] dtoverlay=upstream-pi4` converts

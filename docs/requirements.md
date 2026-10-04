@@ -171,7 +171,8 @@ Each has an ID so tests and commit messages can name it.
 
 | Model | Status |
 |---|---|
-| Pi 5 Model B | Primary target. SD card only. D0 proven; C0 shipped but never booted |
+| Pi 5 Model B (D0) | Primary target. SD card only. Rev 1.1 / `d04171` |
+| Pi 5 Model B (C0) | **Not supported.** It is handed a D0 device tree and will panic — see §8 |
 | Pi 4 / CM4 / 400 | Supported. SD or USB |
 | Pi 500, CM5 | Boot, but keep the RP1 fault — no ethernet, no USB. See §8 |
 
