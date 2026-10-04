@@ -211,7 +211,12 @@ On a Pi 5 this also carries the device trees, which come from the *kernel*
 rather than from a firmware package — so a kernel update makes the ESP drift
 and the check will say so. Until you sync, the board keeps booting the tree
 already on its card, which is the safe default but means the two can sit a
-release apart ([docs/pi5.md](docs/pi5.md)).
+release apart.
+
+Note that sync **keeps your `config.txt`**, by design. That is what protects
+your edits, but it also means sync alone cannot undo a stale `[pi5]` display
+overlay: a card flashed before the Pi 5 fix needs a reflash, or that line
+commented out by hand ([docs/pi5.md](docs/pi5.md)).
 
 ## 6. Serial console
 
@@ -246,7 +251,7 @@ console through to the kernel without extra configuration.
 | `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
 | Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§6) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
-| Pi 5 reaches a login but has no network and a dead USB keyboard | RP1 did not bind — the device tree on the ESP is the firmware's, not the image's. `sudo pi-core-firmware sync`, then reboot ([docs/pi5.md](docs/pi5.md)) |
+| Pi 5 reaches a login but has no network and a dead USB keyboard | RP1 did not bind: the ESP carries the firmware's device tree. **Reflash** from a release that includes the fix — `pi-core-firmware sync` will not repair it, because it keeps your existing `config.txt` and so leaves the display overlay active ([docs/pi5.md](docs/pi5.md)) |
 | Pi 5 panics ~3 s in, QR code on screen | A device tree for the wrong silicon stepping. Decode the QR; if it names `brcmstb_pull_config_set`, see [docs/pi5.md](docs/pi5.md) |
 | Pi 500 / CM5 boots but has no network | Expected, not a fault in your card — see the model table above |
 

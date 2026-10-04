@@ -78,16 +78,43 @@ CFGEOF
 # upstream equivalent, so they keep the RP1 bug. Pi 4 is untouched on purpose --
 # `[pi4] dtoverlay=upstream-pi4` already converts its tree and it works today.
 replace_dtb() {  # <stash name> <kernel name> <expected stepping>
-    local want="$1" from="$2" stepping="$3" src
+    local want="$1" from="$2" stepping="$3" other src
+    [[ "${stepping}" == "c0" ]] && other=d0 || other=c0
+
+    # Replacing, never adding. If upstream renames or drops a firmware tree,
+    # a plain cp would create a file the firmware never loads and leave the
+    # real one in place -- a Pi 5 with no ethernet, and nothing to notice it,
+    # because tier 1 only checks the names this function wrote.
+    [[ -e "${FW_STASH}/${want}" ]] \
+        || { echo "FATAL: firmware ships no ${want} to replace" >&2; exit 1; }
+
     shopt -s nullglob
     local found=(/usr/lib/modules/*/dtb/broadcom/"${from}")
     shopt -u nullglob
-    [[ ${#found[@]} -gt 0 ]] || { echo "FATAL: kernel ships no ${from}" >&2; exit 1; }
+    # Exactly one, not the first of several: with two kernels present the glob
+    # sorts lexically, so 6.10 precedes 6.9 and the ESP could get a tree for a
+    # kernel the image does not boot.
+    [[ ${#found[@]} -eq 1 ]] \
+        || { echo "FATAL: expected one ${from}, found ${#found[@]}: ${found[*]:-none}" >&2; exit 1; }
     src="${found[0]}"
+
+    # Both strings, matching tier 1 exactly. Checking only one lets the build
+    # pass and CI fail later -- or a local `just build` ship it unnoticed.
+    local node
+    for node in clk_rp1_xosc pci-ep-bus; do
+        grep -qa "${node}" "${src}" \
+            || { echo "FATAL: ${from} has no ${node}; replacing would fix nothing" >&2; exit 1; }
+    done
+
+    # Present AND the other stepping absent. A tree carrying both is not
+    # hypothetical -- the downstream bcm2712-d-rpi-5-b.dtb carries c0 and d0
+    # aon-pinctrl strings today -- and a mixed tree would satisfy either
+    # one-sided check while still faulting on real silicon.
     grep -qa "bcm2712${stepping}-pinctrl" "${src}" \
         || { echo "FATAL: ${from} is not ${stepping} silicon" >&2; exit 1; }
-    grep -qa 'clk_rp1_xosc' "${src}" \
-        || { echo "FATAL: ${from} has no RP1 description; replacing would fix nothing" >&2; exit 1; }
+    ! grep -qaE "bcm2712${other}-[a-z-]*pinctrl" "${src}" \
+        || { echo "FATAL: ${from} carries ${other} pinctrl too; stepping is ambiguous" >&2; exit 1; }
+
     cp "${src}" "${FW_STASH}/${want}"
     echo "::: ${want} <- ${src} (${stepping})"
 }

@@ -231,8 +231,12 @@ freeze what the nightly rebuild exists to pick up.
   `sysusers.d` (a bare `/etc/passwd` entry fails `bootc container lint`) and
   root growth from `pi-core-growfs.service`, because Fedora CoreOS only grows
   the root on an Ignition firstboot. Both are asserted in tier 1.
-- **The image is model-agnostic** — nothing in it is Pi 4 or Pi 5 specific, and
-  it should stay that way.
+- **One image for every model.** There are no per-model builds and no build-time
+  model switches, and there should never be. Per-model behaviour is allowed only
+  through files the *firmware* selects — the `[pi3]`/`[pi4]`/`[pi5]` sections of
+  `config.txt`, and the device trees it picks by board revision. The Pi 5 device
+  tree replacement lives there for exactly that reason; a build that branched on
+  the model instead would be the wrong shape.
 - **The published image ships `core` / `core` on purpose.** SSH password auth is
   on (`10-pi-core-passwords.conf`, which must keep sorting before FCOS's
   `40-disable-passwords.conf` — sshd takes the *first* value for a keyword) and
@@ -260,6 +264,10 @@ why the image replaces the bcm2712 device trees and why the silicon stepping
 is load-bearing. Shipping the RP1 drivers was never the hard part.
 
 Not yet proven, and worth saying so rather than implying otherwise:
+
+- **Pi 5 C0 silicon.** Only D0 (Rev 1.1, `d04171`) has run this. The C0 tree is
+  shipped and asserted, but that tree-and-silicon pairing has never booted, and
+  getting a stepping wrong panics the board rather than degrading.
 
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a

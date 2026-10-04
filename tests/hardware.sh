@@ -86,11 +86,22 @@ fi
 # Via sysfs, not lsusb: usbutils is not in the image, so an lsusb-based check
 # skipped on every run and never once tested the thing it names. USB is the
 # other half of what RP1 provides, so this is not a check worth having inert.
-USBC=$(rc "ls /sys/bus/usb/devices/ 2>/dev/null | grep -c '^usb[0-9]'" || echo 0)
+#
+# `|| true`, not `|| echo 0`: grep -c already prints 0 when it matches nothing,
+# and exits 1 doing so, so `|| echo 0` appended a second line and the test
+# below died with an arithmetic syntax error instead of failing cleanly.
+USBC=$(rc "ls /sys/bus/usb/devices/ 2>/dev/null | grep -c '^usb[0-9]'" || true)
+USBC="${USBC//[^0-9]/}"
 if [[ "${USBC:-0}" -gt 0 ]]; then
     pass "USB root hubs present (${USBC})"
-else
+elif [[ "${MODEL}" == *"Pi 5"* ]]; then
+    # Only a hard failure where it means something specific. On a Pi 5 no root
+    # hubs means rp1_pci did not bind, which also costs ethernet.
     fail "no USB root hubs — on Pi 5 this means rp1_pci did not bind"
+else
+    # A CM4 is supported and can legitimately have none: USB needs otg_mode
+    # and there is no VL805, so a hard fail here would break a healthy board.
+    skip "no USB root hubs (expected on some ${MODEL:-boards}; only diagnostic on Pi 5)"
 fi
 
 head_ "firmware tooling"
