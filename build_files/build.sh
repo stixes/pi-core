@@ -54,45 +54,52 @@ framebuffer_width=1280
 framebuffer_height=720
 CFGEOF
 
-# Pi 5: hand the kernel its own device tree.
+# Pi 5: replace the stashed bcm2712 device trees with the kernel's own.
 #
 # rp1_pci binds against a DT description of RP1's children, and the firmware's
-# bcm2712-rpi-5-b.dtb does not carry one -- no clk_rp1_xosc, no pci-ep-bus --
-# so on a Pi 5 it probes with -EINVAL and the board comes up with no ethernet
-# and no USB, both of which hang off RP1. Measured on hardware 2026-09-07; the
-# mechanism is in docs/requirements.md section 8. The kernel's own copy of that
-# same DTB carries both nodes, so ship it alongside and point [pi5] at it.
+# device trees do not carry one -- no clk_rp1_xosc, no pci-ep-bus -- so on a
+# Pi 5 it probes -EINVAL and the board comes up with no ethernet and no USB,
+# both of which hang off RP1. The kernel ships the same boards' trees with both
+# nodes present. Proven on a Pi 5 Model B Rev 1.1 on 2026-10-04: RP1 binds,
+# end0 comes up at 1 Gbps, USB enumerates.
 #
-# This is the Pi 5 equivalent of the `[pi4] dtoverlay=upstream-pi4` that
-# Fedora's own config.txt already applies to run an upstream kernel against a
-# downstream device tree. No upstream-pi5 overlay exists to do it with.
-shopt -s nullglob
-PI5_DTBS=(/usr/lib/modules/*/dtb/broadcom/bcm2712-rpi-5-b.dtb)
-shopt -u nullglob
-if [[ ${#PI5_DTBS[@]} -eq 0 ]]; then
-    echo "FATAL: no kernel bcm2712-rpi-5-b.dtb to ship for the Pi 5" >&2
-    exit 1
-fi
-cp "${PI5_DTBS[0]}" "${FW_STASH}/upstream-bcm2712-rpi-5-b.dtb"
-echo "::: Pi 5 upstream DTB taken from ${PI5_DTBS[0]}"
+# Replaced *under the firmware's own names* rather than selected with
+# `device_tree=` in config.txt, because the firmware picks the tree by board
+# revision and config.txt has no conditional for the silicon stepping. Getting
+# that wrong is not subtle: a C0 tree on D0 silicon panics the kernel in
+# brcmstb_pull_config_set with a fatal SError, which is how this was found.
+#
+# So the mapping is by stepping, and it is checked rather than assumed:
+#   firmware bcm2712-rpi-5-b.dtb   (C0) <- kernel bcm2712-rpi-5-b.dtb   (C0)
+#   firmware bcm2712d0-rpi-5-b.dtb (D0) <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+#   firmware bcm2712-d-rpi-5-b.dtb (D0) <- kernel bcm2712-d-rpi-5-b.dtb (D0)
+#
+# Pi 500 and the CM5 variants keep their downstream trees: the kernel ships no
+# upstream equivalent, so they keep the RP1 bug. Pi 4 is untouched on purpose --
+# `[pi4] dtoverlay=upstream-pi4` already converts its tree and it works today.
+replace_dtb() {  # <stash name> <kernel name> <expected stepping>
+    local want="$1" from="$2" stepping="$3" src
+    shopt -s nullglob
+    local found=(/usr/lib/modules/*/dtb/broadcom/"${from}")
+    shopt -u nullglob
+    [[ ${#found[@]} -gt 0 ]] || { echo "FATAL: kernel ships no ${from}" >&2; exit 1; }
+    src="${found[0]}"
+    grep -qa "bcm2712${stepping}-pinctrl" "${src}" \
+        || { echo "FATAL: ${from} is not ${stepping} silicon" >&2; exit 1; }
+    grep -qa 'clk_rp1_xosc' "${src}" \
+        || { echo "FATAL: ${from} has no RP1 description; replacing would fix nothing" >&2; exit 1; }
+    cp "${src}" "${FW_STASH}/${want}"
+    echo "::: ${want} <- ${src} (${stepping})"
+}
+replace_dtb bcm2712-rpi-5-b.dtb   bcm2712-rpi-5-b.dtb   c0
+replace_dtb bcm2712d0-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb d0
+replace_dtb bcm2712-d-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb d0
 
-# Disable the downstream display overlay in the stock [pi5] section. It is
-# written against the downstream tree so it would not apply cleanly to an
-# upstream one, and it probe-loops vc4 to death on this hardware regardless --
-# 11,587 bind/unbind cycles in 400 seconds, measured.
+# The stock [pi5] display overlay goes off with them: it is written against the
+# downstream tree, and it probe-loops vc4 to death on this hardware anyway --
+# 11,587 bind/unbind cycles in 400 seconds, measured. With it gone: zero.
 sed -i '/^\[pi5\]/,/^\[/ s/^dtoverlay=vc4-kms-v3d-pi5,cma-256$/#&  # pi-core: probe-loops vc4/' \
     "${FW_STASH}/config.txt"
-
-# A repeated [pi5] section is legal and keeps this additive; close it with
-# [all] again so nothing appended later becomes Pi 5 only by accident.
-cat >> "${FW_STASH}/config.txt" <<'CFGEOF'
-
-# pi-core: give the Pi 5 kernel the device tree that actually describes RP1.
-[pi5]
-device_tree=upstream-bcm2712-rpi-5-b.dtb
-
-[all]
-CFGEOF
 
 # Record what we shipped so the on-device checker can compare versions.
 rpm -q bcm283x-firmware bcm2711-firmware bcm2712-firmware bcm2835-firmware \

@@ -171,8 +171,9 @@ Each has an ID so tests and commit messages can name it.
 
 | Model | Status |
 |---|---|
-| Pi 5 / 500 | Primary target. SD card only |
+| Pi 5 Model B | Primary target. SD card only. Both C0 and D0 steppings |
 | Pi 4 / CM4 / 400 | Supported. SD or USB |
+| Pi 500, CM5 | Boot, but keep the RP1 fault — no ethernet, no USB. See §8 |
 
 aarch64 only, asserted at build time.
 
@@ -261,33 +262,26 @@ two should not drift apart.
   that *delivers* a policy is evaluated under the previous one. Nothing can
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
-- **The Pi 5 boots pi-core and then loses ethernet, USB and eventually
-  itself.** Measured 2026-09-07 on a Pi 5 Model B Rev 1.1; the journal is the
-  evidence, not a reconstruction. The boot chain is not the problem — firmware,
-  U-Boot, GRUB, kernel and systemd all work and the machine reaches a login
-  prompt. Two faults follow it:
+- **Pi 5 works, with three gaps.** It was broken in two ways and both are
+  fixed; what the fix cost is recorded in design-decisions.md. Verified
+  2026-10-04 on a Pi 5 Model B Rev 1.1 (`d04171`): `rp1_pci` binds, `end0`
+  comes up at 1 Gbps, USB enumerates four root hubs, the vc4 probe loop is
+  gone, and tier 3 passes 17/17 over SSH. What does **not** work yet:
 
-  1. **`rp1_pci` does not bind.** `Missing of_node for device`, probe fails
-     `-EINVAL`. The chip enumerates (`1de4:0001`, link up 5.0 GT/s x4); the
-     driver refuses it for want of a device-tree node. Ethernet and USB both
-     hang off RP1, so NetworkManager sees only `lo` and an attached USB
-     keyboard does nothing. The cause is which device tree the kernel gets: the
-     firmware's `bcm2712-rpi-5-b.dtb` describes RP1 the downstream way and has
-     no `clk_rp1_xosc` and no `pci-ep-bus`, which is what the upstream driver
-     binds against. The kernel's own copy of that DTB has both. This is the
-     Pi 5 equivalent of the `dtoverlay=upstream-pi4` that Fedora's `config.txt`
-     applies on a Pi 4, and no `upstream-pi5` overlay exists.
-  2. **`vc4-drm` probe-loops until the machine dies.** `vc4_hdmi` cannot
-     register its PCM component (`-EPROBE_DEFER`), so the driver binds,
-     registers an input device, fails, unbinds and retries — 10,619 times in
-     370 seconds, 86,521 journal lines, input devices numbered to `input10623`.
-     That is what blanks HDMI and silences the activity LED a few seconds after
-     login. The trigger is `[pi5] dtoverlay=vc4-kms-v3d-pi5,cma-256` in
-     Fedora's `config.txt`; the overlay takes a `noaudio` parameter.
+  - **No wireless.** `sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid
+    resource` — the second MMC controller does not come up under the upstream
+    tree, so there is nothing for `brcmfmac` to bind to. Wifi is Pi 4 only.
+  - **No power button.** `gpio-keys: error -ENXIO: Unable to get irq number
+    for GPIO 0`. Worth knowing that this is the same driver that panics when
+    given a tree for the wrong silicon stepping; on the right one it fails
+    cleanly.
+  - **No thermal zones**, so no fan control and no temperature reading. This
+    was already a known gap in Fedora's Pi 5 support.
 
-  Neither is a pi-core bug in the sense of something this repo did wrong, and
-  neither is fixed. R-number impact: the Pi 5 does not currently satisfy the
-  requirement to reach a usable networked machine from a flashed card.
+  **Pi 500 and the CM5 variants are not covered.** The kernel ships upstream
+  trees only for the two Model B steppings, so those boards keep the downstream
+  tree and keep the RP1 fault.
+
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
   two-partition layout, and on a `coreos-installer` install the same entry
