@@ -11,8 +11,9 @@ downloaded, no network needed to get a usable machine.
 
 | Model | Status | Notes |
 |---|---|---|
-| **Pi 5 / 500** | primary target | **SD card only** — see storage below. Serial console differs (§6) |
+| **Pi 5 Model B** | primary target | **SD card only** — see storage below. Serial console differs (§6). No wireless, no power button: [docs/pi5.md](docs/pi5.md) |
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
+| Pi 500, CM5 | **boots, but no network** | The kernel ships no upstream device tree for them, so they keep the fault [docs/pi5.md](docs/pi5.md) fixes for the Model B |
 | Pi 3 / Zero 2 W | **cannot boot** | Its ROM reads MBR only; this image is GPT, so nothing is ever loaded. Tested, not assumed. Firmware and DTBs ship regardless — one package covers every model |
 
 ## 0. What you need
@@ -35,11 +36,12 @@ card will wear out faster than you would like.
 
 - **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM.
 - **Pi 5: SD card only.** Not for want of PCIe support — the U-Boot we ship
-  carries the BCM2712 PCIe driver and the `nvme` commands — but nothing puts
-  NVMe in the boot order, and `config.txt` never enables the slot. USB is a
-  firmer no: that U-Boot has no RP1 driver at all, and the Pi 5's USB hangs off
-  RP1. Mechanism in [requirements.md](docs/requirements.md) §5. Use a good
-  endurance-rated card and expect to replace it.
+  carries the BCM2712 PCIe driver and the `nvme` commands, and the firmware
+  brings the slot up on its own — but nothing puts NVMe in the boot order, so
+  U-Boot never boots from it. USB is a firmer no: that U-Boot has no RP1 driver
+  at all, and the Pi 5's USB hangs off RP1. Mechanism in
+  [requirements.md](docs/requirements.md) §5. Use a good endurance-rated card
+  and expect to replace it.
 
 ## 1. Flash the image
 
@@ -106,7 +108,7 @@ instead.
 | `PI_SSH_KEY` | One public key, authorised for `core`. The whole line from your `.pub` file |
 | `PI_PASSWORD_HASH` | Replaces the `core` password. A **hash**, from `mkpasswd -m yescrypt` — a plaintext value is refused, not silently set |
 | `PI_TIMEZONE` | IANA name, e.g. `Europe/Copenhagen` |
-| `PI_WIFI_SSID`, `PI_WIFI_PSK` | Joins a wireless network. Wired is more predictable for anything that matters |
+| `PI_WIFI_SSID`, `PI_WIFI_PSK` | Joins a wireless network. **Pi 4 only** — a Pi 5 has no working wireless ([docs/pi5.md](docs/pi5.md)). Wired is more predictable for anything that matters |
 | `PI_TAILSCALE_AUTHKEY` | Joins a tailnet unattended. Use a single-use key |
 | `PI_WIPE_SECRETS` | `1` by default: blanks the password, PSK and auth key from the card once applied |
 
@@ -205,6 +207,12 @@ sudo systemctl reboot
 This is deliberately not automatic: a bad firmware write bricks the boot and
 there is no rollback for it. Your `config.txt` is preserved.
 
+On a Pi 5 this also carries the device trees, which come from the *kernel*
+rather than from a firmware package — so a kernel update makes the ESP drift
+and the check will say so. Until you sync, the board keeps booting the tree
+already on its card, which is the safe default but means the two can sit a
+release apart ([docs/pi5.md](docs/pi5.md)).
+
 ## 6. Serial console
 
 Worth wiring up before you need it — **and the wiring differs by model.** This
@@ -238,6 +246,9 @@ console through to the kernel without extra configuration.
 | `.local` does not resolve | Multicast blocked on that network; use the DHCP lease address |
 | Nothing on serial, Pi 5 | Wrong UART — Pi 5 uses the debug connector, not GPIO 14/15 (§6) |
 | Pi 5 will not boot from USB/NVMe | Expected; Pi 5 is SD-only here |
+| Pi 5 reaches a login but has no network and a dead USB keyboard | RP1 did not bind — the device tree on the ESP is the firmware's, not the image's. `sudo pi-core-firmware sync`, then reboot ([docs/pi5.md](docs/pi5.md)) |
+| Pi 5 panics ~3 s in, QR code on screen | A device tree for the wrong silicon stepping. Decode the QR; if it names `brcmstb_pull_config_set`, see [docs/pi5.md](docs/pi5.md) |
+| Pi 500 / CM5 boots but has no network | Expected, not a fault in your card — see the model table above |
 
 ### No output at all: update the EEPROM
 

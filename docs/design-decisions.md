@@ -234,38 +234,38 @@ and there is no cost to shipping it whole. Targeting is a separate decision:
 
 ## Pi 5 gets the kernel's device trees, under the firmware's filenames
 
-`rp1_pci` binds against a device-tree description of RP1's children. The
-firmware's `bcm2712*` trees do not carry one — no `clk_rp1_xosc`, no
-`pci-ep-bus` — so on a Pi 5 the driver probes `-EINVAL`, and since ethernet and
-USB both hang off RP1 the board reaches a login prompt with neither. It looks
-exactly like a machine that failed to boot. The kernel ships trees for the same
+`rp1_pci` binds against a device-tree description of RP1's children that the
+firmware's `bcm2712*` trees do not carry. Since ethernet and USB both hang off
+RP1, a Pi 5 reached a login prompt with neither — indistinguishable, on a
+headless board, from one that never booted. The kernel ships trees for the same
 boards *with* those nodes, so the build overwrites the stashed firmware copies
-with them.
+with them, and drops the `[pi5]` display overlay that probe-looped `vc4` to
+death alongside.
 
-Two decisions inside that are easy to get wrong, and one of them was:
+Two choices inside that are load-bearing, and one of them was learned the hard
+way:
 
 **Replaced under the firmware's own filenames, not selected with
-`device_tree=`.** The firmware picks the tree by board revision, and
-`config.txt` has no conditional for the silicon stepping — so no single
-`device_tree=` filename can serve both. Overwriting by name keeps the
-firmware's own selection working and the mechanism invisible.
+`device_tree=`.** The firmware picks the tree by board revision, which is what
+gets the silicon stepping right, and `config.txt` has no conditional for the
+stepping — so no single forced filename serves both C0 and D0.
 
-**The stepping pairing is load-bearing.** `bcm2712-rpi-5-b.dtb` is C0 silicon
-and `bcm2712d0-rpi-5-b.dtb` is D0; a Pi 5 Rev 1.1 is D0. Handing D0 silicon the
-C0 tree does not degrade gracefully — `gpio_keys` probes the power button,
-pinctrl writes a pull-config register at the C0 offset, and the board takes a
-fatal SError in `brcmstb_pull_config_set` about three seconds in. That is how
-this was found, and it is why `build.sh` greps each tree for its expected
-stepping before copying it rather than trusting the filename.
+**The stepping pairing is checked, not assumed.** Handing D0 silicon the C0
+tree panics the board in `brcmstb_pull_config_set` about three seconds in, so
+`build.sh` greps each tree for its expected stepping before copying it rather
+than trusting a filename that differs by one letter.
 
 What it costs: the ESP now carries *kernel* artifacts, so a kernel bump makes
-the stash and the ESP diverge. `pi-core-firmware check` already reports that
-and `sync` already applies it — the machinery is unchanged, it just fires far
-more often than when the stash only moved with a firmware package.
+it diverge from the image. `pi-core-firmware check`/`sync` already covers that
+class — it simply fires far more often than when the stash moved only with a
+firmware package.
 
-The Pi 4 is deliberately untouched. Fedora's `[pi4] dtoverlay=upstream-pi4`
-already converts its downstream tree, and that is the one path proven in the
-field; tier 1 fails if the Pi 4 tree ever gets replaced too.
+The Pi 4 is untouched on purpose: `[pi4] dtoverlay=upstream-pi4` already
+converts its tree and that is the path proven in the field. Tier 1 fails if the
+Pi 4 tree is replaced too.
+
+Full account, including the panic signature and how to diagnose it on hardware:
+[pi5.md](pi5.md).
 
 ## aarch64 only, asserted at build time
 

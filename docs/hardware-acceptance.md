@@ -106,13 +106,20 @@ The part nothing else can test. Watch the serial console.
 
 Record: seconds from power-on to A1, and to A5.
 
-**Pi 5 specifics.** The Pi 5 path is less travelled than the Pi 4 one, so treat
-these as live questions rather than assumptions:
+**Pi 5 specifics.** Both of these have known answers now — confirm them rather
+than discover them, and see [pi5.md](pi5.md) if either disagrees.
 
 - [ ] **A6** (Pi 5) Ethernet and USB work — both hang off the RP1 southbridge,
-      so `rp1_pci` loading is the thing being tested. `ip link` and `lsusb`.
-- [ ] **A7** (Pi 5) Record whether thermals/fan behave; fan control was still
-      incomplete in Fedora's Pi 5 support and may simply be absent.
+      so whether `rp1_pci` binds is the thing being tested. Expect an interface
+      in `ip -br addr show` and four root hubs in `ls /sys/bus/usb/devices/`.
+      Note `lsusb` is **not** in the image; use sysfs. If both are missing,
+      check `sudo dmesg | grep rp1_pci` — `Missing of_node` means the ESP is
+      carrying the firmware's device tree rather than the image's.
+- [ ] **A7** (Pi 5) Thermals are expected to be **absent** — no thermal zones
+      are registered, so no fan control and no temperature reading. Record it
+      if that ever changes.
+- [ ] **A8** (Pi 5) Wireless is expected to be **absent**, and the power button
+      dead. Both are documented gaps, not regressions.
 
 ## B. First boot and login
 

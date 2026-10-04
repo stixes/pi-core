@@ -83,8 +83,15 @@ if rq "ip -br link show | grep -qE '^(end|eth)'"; then
 else
     fail "no ethernet interface — on Pi 5 this means rp1_pci did not bind"
 fi
-USBC=$(rc "lsusb 2>/dev/null | wc -l" || echo 0)
-if [[ "${USBC:-0}" -gt 0 ]]; then pass "USB enumerates (${USBC} devices)"; else skip "no USB devices listed"; fi
+# Via sysfs, not lsusb: usbutils is not in the image, so an lsusb-based check
+# skipped on every run and never once tested the thing it names. USB is the
+# other half of what RP1 provides, so this is not a check worth having inert.
+USBC=$(rc "ls /sys/bus/usb/devices/ 2>/dev/null | grep -c '^usb[0-9]'" || echo 0)
+if [[ "${USBC:-0}" -gt 0 ]]; then
+    pass "USB root hubs present (${USBC})"
+else
+    fail "no USB root hubs — on Pi 5 this means rp1_pci did not bind"
+fi
 
 head_ "firmware tooling"
 check "pi-core-firmware runs" rq "sudo pi-core-firmware check"

@@ -3,13 +3,17 @@
 A custom [uCore](https://github.com/ublue-os/ucore) (Fedora CoreOS) bootc image
 for Raspberry Pi, for my personal homelab.
 
-> **Status:** runs on a Pi 4 — boots, updates and grows unattended. What is and
-> is not proven is kept in [CLAUDE.md](CLAUDE.md#status); the checklist that
-> proves it is [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
+> **Status:** runs on a Pi 4 and a Pi 5 Model B — boots, updates and grows
+> unattended. What is and is not proven is kept in
+> [CLAUDE.md](CLAUDE.md#status); the checklist that proves it is
+> [docs/hardware-acceptance.md](docs/hardware-acceptance.md).
 
-Targets **Pi 5 and Pi 4** — a small always-on container host. Pi 3 and Zero 2 W
-cannot boot it: their boot ROM reads MBR only and the image is GPT. Scope and
-the reasons are in [docs/requirements.md](docs/requirements.md#5-scope).
+Targets **Pi 5 Model B and Pi 4** — a small always-on container host. The Pi 5
+needed its device trees replaced to get ethernet and USB at all, which is its
+own story: [docs/pi5.md](docs/pi5.md). Pi 500 and CM5 boot but keep that fault.
+Pi 3 and Zero 2 W cannot boot it at all: their boot ROM reads MBR only and the
+image is GPT. Scope and the reasons are in
+[docs/requirements.md](docs/requirements.md#5-scope).
 
 ## How it works
 
@@ -148,11 +152,14 @@ gitignored locally as `cosign.key`.
 cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stable"
 ```
 
-**The image install is still unsigned.** `build-image.sh` passes
-`--target-no-signature-verification` because the container policy shipped in
-the image does not yet carry this key. The image is verified out of band
-instead. Wiring the key into `policy.json` is the next step toward a verified
-boot chain, and it also matters for `bootc upgrade` on the device.
+**`bootc upgrade` verifies; `bootc install` does not, and cannot.** The image
+ships `cosign.pub` at `/etc/pki/containers/pi-core.pub` and a `policy.json`
+entry scoped to this repository, so an upgrade on the device checks the
+signature — proven on hardware with negative controls. The install never does,
+by design rather than omission: it installs from local containers-storage,
+which `bootc` pins to an insecure policy because the image is already pulled
+and verified out of band. The release's signed `SHA256SUMS` is what covers a
+download instead; see [INSTALL.md](INSTALL.md) §1.
 
 ## Forking
 
