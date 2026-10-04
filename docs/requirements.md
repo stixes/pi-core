@@ -263,24 +263,18 @@ two should not drift apart.
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
 - **Pi 5 works, with three gaps.** It was broken in two ways and both are
-  fixed; what the fix cost is recorded in design-decisions.md. Verified
-  2026-10-04 on a Pi 5 Model B Rev 1.1 (`d04171`): `rp1_pci` binds, `end0`
-  comes up at 1 Gbps, USB enumerates four root hubs, the vc4 probe loop is
-  gone, and tier 3 passes 17/17 over SSH. What does **not** work yet:
+  fixed; verified 2026-10-04 on a Pi 5 Model B Rev 1.1 (`d04171`) with tier 3
+  passing 17/17. Still missing: **wireless** (the second MMC controller does
+  not come up under the upstream device tree, so `brcmfmac` has nothing to bind
+  to), the **power button**, and **thermal zones** — so no fan control and no
+  temperature reading.
 
-  - **No wireless.** `sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid
-    resource` — the second MMC controller does not come up under the upstream
-    tree, so there is nothing for `brcmfmac` to bind to. Wifi is Pi 4 only.
-  - **No power button.** `gpio-keys: error -ENXIO: Unable to get irq number
-    for GPIO 0`. Worth knowing that this is the same driver that panics when
-    given a tree for the wrong silicon stepping; on the right one it fails
-    cleanly.
-  - **No thermal zones**, so no fan control and no temperature reading. This
-    was already a known gap in Fedora's Pi 5 support.
+  **Pi 500 and the CM5 variants are not covered**: the kernel ships upstream
+  device trees only for the two Pi 5 Model B steppings, so those boards keep
+  the downstream tree and keep the RP1 fault.
 
-  **Pi 500 and the CM5 variants are not covered.** The kernel ships upstream
-  trees only for the two Model B steppings, so those boards keep the downstream
-  tree and keep the RP1 fault.
+  The mechanism, the stepping trap that panics a board, and how to diagnose it:
+  [pi5.md](pi5.md).
 
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
