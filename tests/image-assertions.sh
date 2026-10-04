@@ -71,7 +71,15 @@ pi5_dtb() {  # <stash name> <expected stepping>
         fail "$1 is not ${stepping} silicon — wrong stepping panics the kernel"
         return
     fi
-    pass "$1 is the kernel's ${stepping} tree, with RP1"
+    # And the other stepping absent. The downstream bcm2712-d-rpi-5-b.dtb
+    # carries both c0 and d0 aon-pinctrl strings today, so "contains d0" alone
+    # would accept a mixed tree that still faults on real silicon.
+    local other; [[ "${stepping}" == "c0" ]] && other=d0 || other=c0
+    if grep -qaE "bcm2712${other}-[a-z-]*pinctrl" "$f"; then
+        fail "$1 carries ${other} pinctrl as well — stepping is ambiguous"
+        return
+    fi
+    pass "$1 is the kernel's ${stepping} tree, with RP1 and no ${other}"
 }
 pi5_dtb bcm2712-rpi-5-b.dtb   c0
 pi5_dtb bcm2712d0-rpi-5-b.dtb d0
@@ -83,7 +91,15 @@ if grep -qa 'clk_rp1_xosc' "$FW/bcm2711-rpi-4-b.dtb"; then
 else
     pass "the Pi 4 tree is untouched"
 fi
-check "the downstream vc4 pi5 overlay is off" grep -qE '^#dtoverlay=vc4-kms-v3d-pi5' "$FW/config.txt"
+# The absence of an active line is the assertion; a commented one only proves
+# some comment exists. build.sh's sed is an exact match, so if Fedora changes
+# cma-256 to cma-512 or adds trailing space it silently no-ops, and a test that
+# looked for "#dtoverlay=..." could still pass on an unrelated commented line.
+if grep -qE '^[[:space:]]*dtoverlay=vc4-kms-v3d-pi5' "$FW/config.txt"; then
+    fail "an active vc4-kms-v3d-pi5 overlay remains — Pi 5 will probe-loop"
+else
+    pass "no active vc4-kms-v3d-pi5 overlay"
+fi
 # device_tree= would defeat the firmware's own per-revision selection, which is
 # what picks the right stepping. If it comes back, the stepping bug comes back.
 if grep -qE '^device_tree=' "$FW/config.txt"; then

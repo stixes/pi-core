@@ -8,24 +8,24 @@ The requirement side is [requirements.md](requirements.md) §8; the decision and
 its rationale are in [design-decisions.md](design-decisions.md). This file is
 the detail both of those point at.
 
-## State
+## What works, and what does not
 
-Verified on a **Pi 5 Model B Rev 1.1** (`d04171`, D0 silicon) on 2026-10-04:
-`rp1_pci` binds, `end0` comes up at 1 Gbps, USB enumerates four root hubs, and
-`just test-hardware` passes 18/18 over SSH.
+Which of these currently hold on hardware is tracked in
+[CLAUDE.md](../CLAUDE.md#status); the gap list is
+[requirements.md](requirements.md) §8. Neither is repeated here — this file is
+the mechanism, and three copies of a status list is three things to drift.
 
-Not working, and not currently fixable from this repo:
-
-| | Symptom | Cause |
-|---|---|---|
-| **Wireless** | no `wlan` interface | `sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid resource` — the second MMC controller does not come up under the upstream device tree, so `brcmfmac` has nothing to bind to. Wifi is Pi 4 only |
-| **Power button** | button does nothing | `gpio-keys: error -ENXIO: Unable to get irq number for GPIO 0` |
-| **Thermals** | no fan control, no temperature | no thermal zones are registered at all; a known gap in Fedora's Pi 5 support |
+Worth stating here because it is a consequence of *this* change rather than an
+upstream gap: **wireless does not work on a Pi 5.** Under the upstream device
+tree the second MMC controller does not come up —
+`sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid resource` — so
+`brcmfmac` has nothing to bind to. The `PI_WIFI_*` keys in `pi-core.conf` are
+Pi 4 only.
 
 **Pi 500 and the CM5 variants are not covered.** The kernel ships upstream
 device trees only for the two Pi 5 Model B steppings, so those boards keep the
-downstream tree and keep the RP1 fault below. They will boot to a login prompt
-with no ethernet and no USB.
+downstream tree and keep the RP1 fault below. They boot to a login prompt with
+no ethernet and no USB.
 
 ## The two faults
 
@@ -172,3 +172,10 @@ One consequence worth stating plainly: **after a kernel update, a Pi 5 keeps
 booting the device tree already on its ESP** until you sync. That is usually
 harmless, and is the safe default, but it means the tree and the kernel can be
 a release apart.
+
+And one trap in the other direction: **`sync` deliberately keeps an existing
+`config.txt`**, so it will write the new device trees but leave an old, active
+`dtoverlay=vc4-kms-v3d-pi5` line in place — upstream tree, downstream overlay,
+straight back into the probe loop. A card flashed before this change therefore
+cannot be repaired by `sync` alone; it needs a reflash, or the overlay line
+commented out by hand on the ESP.
