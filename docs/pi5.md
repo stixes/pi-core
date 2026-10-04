@@ -12,7 +12,7 @@ the detail both of those point at.
 
 Verified on a **Pi 5 Model B Rev 1.1** (`d04171`, D0 silicon) on 2026-10-04:
 `rp1_pci` binds, `end0` comes up at 1 Gbps, USB enumerates four root hubs, and
-`just test-hardware` passes 17/17 over SSH.
+`just test-hardware` passes 18/18 over SSH.
 
 Not working, and not currently fixable from this repo:
 

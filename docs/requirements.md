@@ -264,7 +264,7 @@ two should not drift apart.
   of the first.
 - **Pi 5 works, with three gaps.** It was broken in two ways and both are
   fixed; verified 2026-10-04 on a Pi 5 Model B Rev 1.1 (`d04171`) with tier 3
-  passing 17/17. Still missing: **wireless** (the second MMC controller does
+  passing 18/18. Still missing: **wireless** (the second MMC controller does
   not come up under the upstream device tree, so `brcmfmac` has nothing to bind
   to), the **power button**, and **thermal zones** — so no fan control and no
   temperature reading.
