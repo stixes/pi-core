@@ -54,6 +54,46 @@ framebuffer_width=1280
 framebuffer_height=720
 CFGEOF
 
+# Pi 5: hand the kernel its own device tree.
+#
+# rp1_pci binds against a DT description of RP1's children, and the firmware's
+# bcm2712-rpi-5-b.dtb does not carry one -- no clk_rp1_xosc, no pci-ep-bus --
+# so on a Pi 5 it probes with -EINVAL and the board comes up with no ethernet
+# and no USB, both of which hang off RP1. Measured on hardware 2026-09-07; the
+# mechanism is in docs/requirements.md section 8. The kernel's own copy of that
+# same DTB carries both nodes, so ship it alongside and point [pi5] at it.
+#
+# This is the Pi 5 equivalent of the `[pi4] dtoverlay=upstream-pi4` that
+# Fedora's own config.txt already applies to run an upstream kernel against a
+# downstream device tree. No upstream-pi5 overlay exists to do it with.
+shopt -s nullglob
+PI5_DTBS=(/usr/lib/modules/*/dtb/broadcom/bcm2712-rpi-5-b.dtb)
+shopt -u nullglob
+if [[ ${#PI5_DTBS[@]} -eq 0 ]]; then
+    echo "FATAL: no kernel bcm2712-rpi-5-b.dtb to ship for the Pi 5" >&2
+    exit 1
+fi
+cp "${PI5_DTBS[0]}" "${FW_STASH}/upstream-bcm2712-rpi-5-b.dtb"
+echo "::: Pi 5 upstream DTB taken from ${PI5_DTBS[0]}"
+
+# Disable the downstream display overlay in the stock [pi5] section. It is
+# written against the downstream tree so it would not apply cleanly to an
+# upstream one, and it probe-loops vc4 to death on this hardware regardless --
+# 11,587 bind/unbind cycles in 400 seconds, measured.
+sed -i '/^\[pi5\]/,/^\[/ s/^dtoverlay=vc4-kms-v3d-pi5,cma-256$/#&  # pi-core: probe-loops vc4/' \
+    "${FW_STASH}/config.txt"
+
+# A repeated [pi5] section is legal and keeps this additive; close it with
+# [all] again so nothing appended later becomes Pi 5 only by accident.
+cat >> "${FW_STASH}/config.txt" <<'CFGEOF'
+
+# pi-core: give the Pi 5 kernel the device tree that actually describes RP1.
+[pi5]
+device_tree=upstream-bcm2712-rpi-5-b.dtb
+
+[all]
+CFGEOF
+
 # Record what we shipped so the on-device checker can compare versions.
 rpm -q bcm283x-firmware bcm2711-firmware bcm2712-firmware bcm2835-firmware \
        bcm283x-overlays uboot-images-armv8 > "${FW_STASH}/.versions"

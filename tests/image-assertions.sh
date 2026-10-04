@@ -53,6 +53,22 @@ for section in pi4 pi5; do
     check "config.txt keeps its [$section] section" grep -qE "^\[${section}\]" "$FW/config.txt"
 done
 
+head_ "Pi 5 device tree (the firmware's does not describe RP1)"
+# The firmware's bcm2712-rpi-5-b.dtb describes RP1 the downstream way, so
+# rp1_pci probes with -EINVAL and a Pi 5 comes up with no ethernet and no USB.
+# We ship the kernel's copy and point [pi5] at it. docs/requirements.md §8.
+check "upstream Pi 5 DTB is stashed" test -e "$FW/upstream-bcm2712-rpi-5-b.dtb"
+check "config.txt selects it for [pi5]" grep -qE '^device_tree=upstream-bcm2712-rpi-5-b\.dtb$' "$FW/config.txt"
+check "the downstream vc4 pi5 overlay is off" grep -qE '^#dtoverlay=vc4-kms-v3d-pi5' "$FW/config.txt"
+# The point of shipping it is these two nodes. A DTB without them would pass
+# every check above and fix nothing, which is exactly the failure to guard.
+if grep -qa 'clk_rp1_xosc' "$FW/upstream-bcm2712-rpi-5-b.dtb" \
+   && grep -qa 'pci-ep-bus' "$FW/upstream-bcm2712-rpi-5-b.dtb"; then
+    pass "the stashed DTB describes RP1 (clk_rp1_xosc + pci-ep-bus)"
+else
+    fail "the stashed Pi 5 DTB has no RP1 description — shipping it fixes nothing"
+fi
+
 head_ "kernel device trees (Pi 3 / 4 / 5 coverage)"
 shopt -s nullglob
 MODDIRS=(/usr/lib/modules/*/)
