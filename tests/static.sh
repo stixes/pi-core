@@ -97,6 +97,16 @@ head_ "the build can compute a version"
 # `git describe --tags` needs tags and history in the *build* job. Without them
 # it falls back to a bare sha and the banner ships without a release version --
 # which happened, because the edit adding this was a silent no-op.
+# A publish_image run tags its prerelease `image-<date>-<time>`. If describe is
+# not restricted to release tags it will prefer that, and PI_CORE_VERSION stops
+# matching what tier 1 accepts -- breaking every build after the first manual
+# image, which is exactly what happened once.
+if grep -q "git describe --tags --match 'v\*'" .github/workflows/build.yml; then
+    pass "the version describe is restricted to v* tags"
+else
+    fail "git describe in build.yml is not restricted to v* tags"
+fi
+
 if awk '/^  build:/,/^  release-image:/' .github/workflows/build.yml | grep -q 'fetch-tags: true'; then
     pass "the build job's checkout fetches tags"
 else

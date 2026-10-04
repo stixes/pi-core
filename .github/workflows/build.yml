@@ -95,8 +95,13 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
               echo "PI_CORE_VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
           else
-              echo "PI_CORE_VERSION=$(git describe --tags --always 2>/dev/null \
-                || echo unknown)" >> "$GITHUB_ENV"
+              # --match 'v*' is load-bearing. A publish_image run creates an
+              # `image-<date>-<time>` tag for its prerelease, and an unmatched
+              # describe then prefers that over the last real release -- so the
+              # next build reports a version tier 1 rejects, and the documented
+              # manual-image path quietly breaks every build after it.
+              echo "PI_CORE_VERSION=$(git describe --tags --match 'v*' --always \
+                2>/dev/null || echo unknown)" >> "$GITHUB_ENV"
           fi
 
       - name: Build image
