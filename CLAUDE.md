@@ -255,8 +255,11 @@ upgrades verify our cosign signature. Builds, lints clean, publishes and signs.
 
 Not yet proven, and worth saying so rather than implying otherwise:
 
-- **Pi 5.** Everything here is model-agnostic and the firmware ships for it,
-  but only a Pi 4 has run this.
+- **Pi 5.** It boots — firmware, U-Boot, GRUB, kernel, systemd, login prompt,
+  all of it — and then has no ethernet and no USB, because `rp1_pci` will not
+  bind against the firmware's device tree, and wedges a few seconds later in a
+  `vc4-drm` probe loop. Measured 2026-09-07; requirements.md §8 has the
+  mechanism and the candidate fix. Do not read "model-agnostic" as "works".
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
   first boot since it was fixed.

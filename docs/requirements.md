@@ -205,10 +205,13 @@ aarch64 only, asserted at build time.
   happen is booting from it: `bootcmd` is `bootflow scan`, and bootstd builds
   its scan order from `boot_targets`, which is `mmc usb pxe dhcp`.
 
-  Before any of that matters, the Pi 5's PCIe connector is disabled by the
-  firmware unless `config.txt` says `dtparam=pciex1`, and ours does not — so
-  today there would be nothing for U-Boot to find even if the order allowed it.
-  Neither half has been tried on hardware.
+  A claim that `config.txt` must say `dtparam=pciex1` before the slot exists
+  stood here briefly and was wrong — it was reasoned from the file rather than
+  measured. On the 2026-09-07 Pi 5 boot the firmware brought the connector up
+  unasked: `brcm-pcie 1000110000.pcie: link up, 5.0 GT/s PCIe x1`, with an NVMe
+  endpoint (`10ec:5765`) enumerated behind it. The slot is live with the
+  `config.txt` we ship today. Whether U-Boot will *boot* from it is still
+  untried.
 
 - **USB boot on Pi 5** — not an open question. Our U-Boot contains no RP1
   support whatsoever (the string `rp1` does not occur in the binary) and the Pi
@@ -258,9 +261,33 @@ two should not drift apart.
   that *delivers* a policy is evaluated under the previous one. Nothing can
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
-- **The Pi 5 has never booted pi-core.** Everything in the image is
-  model-agnostic and the firmware ships for it, but no Pi 5 has run it, so the
-  RP1 southbridge binding that ethernet and USB depend on is unproven.
+- **The Pi 5 boots pi-core and then loses ethernet, USB and eventually
+  itself.** Measured 2026-09-07 on a Pi 5 Model B Rev 1.1; the journal is the
+  evidence, not a reconstruction. The boot chain is not the problem — firmware,
+  U-Boot, GRUB, kernel and systemd all work and the machine reaches a login
+  prompt. Two faults follow it:
+
+  1. **`rp1_pci` does not bind.** `Missing of_node for device`, probe fails
+     `-EINVAL`. The chip enumerates (`1de4:0001`, link up 5.0 GT/s x4); the
+     driver refuses it for want of a device-tree node. Ethernet and USB both
+     hang off RP1, so NetworkManager sees only `lo` and an attached USB
+     keyboard does nothing. The cause is which device tree the kernel gets: the
+     firmware's `bcm2712-rpi-5-b.dtb` describes RP1 the downstream way and has
+     no `clk_rp1_xosc` and no `pci-ep-bus`, which is what the upstream driver
+     binds against. The kernel's own copy of that DTB has both. This is the
+     Pi 5 equivalent of the `dtoverlay=upstream-pi4` that Fedora's `config.txt`
+     applies on a Pi 4, and no `upstream-pi5` overlay exists.
+  2. **`vc4-drm` probe-loops until the machine dies.** `vc4_hdmi` cannot
+     register its PCM component (`-EPROBE_DEFER`), so the driver binds,
+     registers an input device, fails, unbinds and retries — 10,619 times in
+     370 seconds, 86,521 journal lines, input devices numbered to `input10623`.
+     That is what blanks HDMI and silences the activity LED a few seconds after
+     login. The trigger is `[pi5] dtoverlay=vc4-kms-v3d-pi5,cma-256` in
+     Fedora's `config.txt`; the overlay takes a `noaudio` parameter.
+
+  Neither is a pi-core bug in the sense of something this repo did wrong, and
+  neither is fixed. R-number impact: the Pi 5 does not currently satisfy the
+  requirement to reach a usable networked machine from a flashed card.
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
   two-partition layout, and on a `coreos-installer` install the same entry
