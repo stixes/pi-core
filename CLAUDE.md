@@ -251,26 +251,26 @@ freeze what the nightly rebuild exists to pick up.
 
 ## Status
 
-Runs on a Raspberry Pi 4 and, since 2026-10-04, a Pi 5 Model B. A flashed card
-boots to a login and a working network unattended, `bootc upgrade` applies a
-new image in about 20 seconds and reboots into it, `bootc rollback` returns to the previous deployment and back again,
-the root filesystem grows to fill the card, `<hostname>.local` resolves, and
-upgrades verify our cosign signature. Builds, lints clean, publishes and signs.
+Runs on a Raspberry Pi 4 and a Pi 5 Model B. A flashed card boots to a login
+and a working network unattended, `bootc upgrade` applies a new image in about
+20 seconds and reboots into it, `bootc rollback` returns to the previous
+deployment and back again, the root filesystem grows to fill the card,
+`<hostname>.local` resolves, and upgrades verify our cosign signature. Builds,
+lints clean, publishes and signs.
 
-The Pi 5 took two device-tree fixes to get there and still has gaps — no
-wireless, no power button, no thermal zones, and Pi 500 / CM5 are not covered
-at all. `docs/requirements.md` §8 lists them; `design-decisions.md` explains
-why the image replaces the bcm2712 device trees and why the silicon stepping
-is load-bearing. Shipping the RP1 drivers was never the hard part.
+A flashed release image has been through the whole cycle on a Pi 5 Model B
+(D0): download, flash, unattended boot, network, root growth to fill the card,
+tier 3 18/18. The root filesystem grew from the 5.5 GB image untouched on a
+first boot, which closes the last standing doubt about that path.
+
+The Pi 5 took two device-tree fixes to get there, and what remains is one gap
+that is upstream's: no thermal zones, so no fan control and no temperature
+reading. C0 silicon is **not** supported, and Pi 500 / CM5 are not covered.
+`docs/requirements.md` §8 has the detail, `docs/pi5.md` the mechanism and the
+silicon-stepping trap. Shipping the RP1 drivers was never the hard part.
 
 Not yet proven, and worth saying so rather than implying otherwise:
 
-- **Pi 5 C0 silicon.** Only D0 (Rev 1.1, `d04171`) has run this. The C0 tree is
-  shipped and asserted, but that tree-and-silicon pairing has never booted, and
-  getting a stepping wrong panics the board rather than degrading.
-- **Unattended growth from a fresh card.** Proven by hand and proven to
-  no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
-  first boot since it was fixed.
 - **Installation is unsigned, and stays that way.** `bootc upgrade` verifies
   our cosign signature (proven on hardware, with negative controls). `bootc
   install` never verifies: it installs from local containers-storage, which it

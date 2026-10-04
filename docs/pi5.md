@@ -15,12 +15,15 @@ Which of these currently hold on hardware is tracked in
 [requirements.md](requirements.md) §8. Neither is repeated here — this file is
 the mechanism, and three copies of a status list is three things to drift.
 
-Worth stating here because it is a consequence of *this* change rather than an
-upstream gap: **wireless does not work on a Pi 5.** Under the upstream device
-tree the second MMC controller does not come up —
-`sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid resource` — so
-`brcmfmac` has nothing to bind to. The `PI_WIFI_*` keys in `pi-core.conf` are
-Pi 4 only.
+One caution about reading that gap list: it describes what a *particular*
+kernel did. `BASE_IMAGE` floats, so the hardware's behaviour moves underneath
+claims written once. Two gaps recorded here from a 7.1.8 boot — no wireless and
+a dead power button — were both gone by 7.2.5 without any change on our side.
+Re-check before relying on one.
+
+`sdhci-brcmstb 1001100000.mmc: error -EINVAL: invalid resource` still appears in
+the log on both kernels, so it is not the reason wireless was missing and is not
+worth chasing as one.
 
 **Pi 500 and the CM5 variants are not covered.** The kernel ships upstream
 device trees only for the two Pi 5 Model B steppings, so those boards keep the
@@ -119,10 +122,14 @@ Tier 1 asserts that `device_tree=` does **not** appear in the shipped
 
 ## The stepping trap
 
-**`bcm2712-rpi-5-b.dtb` is C0 silicon. `bcm2712d0-rpi-5-b.dtb` is D0. A Pi 5
-Rev 1.1 is D0.** The kernel's two upstream trees are `bcm2712-rpi-5-b.dtb` (C0)
-and `bcm2712-d-rpi-5-b.dtb` (D0) — filenames that differ by one letter for a
-difference that is fatal.
+The image no longer ships a C0 tree at all, so this trap cannot be hit through
+a normal build — it is recorded because it will bite anyone hand-editing an ESP
+or reading the kernel's tree names, and because it is why the shipped mapping
+looks redundant.
+
+**The kernel's two upstream trees are `bcm2712-rpi-5-b.dtb` (C0) and
+`bcm2712-d-rpi-5-b.dtb` (D0)** — filenames that differ by one letter for a
+difference that is fatal. A Pi 5 Rev 1.1 is D0.
 
 Giving D0 silicon the C0 tree does not degrade gracefully. `gpio_keys` probes
 the power button, pinctrl writes a pull-config register at the C0 offset, the

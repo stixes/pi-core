@@ -263,12 +263,18 @@ two should not drift apart.
   that *delivers* a policy is evaluated under the previous one. Nothing can
   change that; it is noted so nobody reads a verified second upgrade as proof
   of the first.
-- **Pi 5 works, with three gaps.** It was broken in two ways and both are
-  fixed; verified 2026-10-04 on a Pi 5 Model B Rev 1.1 (`d04171`) with tier 3
-  passing 18/18. Still missing: **wireless** (the second MMC controller does
-  not come up under the upstream device tree, so `brcmfmac` has nothing to bind
-  to), the **power button**, and **thermal zones** — so no fan control and no
-  temperature reading.
+- **Pi 5 works; one gap left, and it is upstream's.** Verified 2026-10-05 on a
+  Pi 5 Model B Rev 1.1 (`d04171`) from a flashed release image, tier 3 passing
+  18/18. Missing: **thermal zones** — none are registered, so no fan control
+  and no temperature reading.
+
+  Two gaps recorded here earlier were kernel-version artefacts and are gone on
+  7.2.5: `wlan0` now appears with `brcmfmac` binding BCM4345/6 (the interface
+  comes up; joining a network has not been tested), and the power button now
+  registers an input device instead of failing `-ENXIO`. Both were written from
+  a single 7.1.8 boot. The lesson is worth more than the gaps were: a floating
+  base image moves what the hardware does, so a gap observed once is a claim
+  with a shelf life, not a fact.
 
   **Pi 500 and the CM5 variants are not covered**: the kernel ships upstream
   device trees only for the two Pi 5 Model B steppings, so those boards keep

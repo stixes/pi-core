@@ -11,7 +11,7 @@ downloaded, no network needed to get a usable machine.
 
 | Model | Status | Notes |
 |---|---|---|
-| **Pi 5 Model B** | primary target | **SD card only** — see storage below. Serial console differs (§6). No wireless, no power button: [docs/pi5.md](docs/pi5.md) |
+| **Pi 5 Model B** | primary target | **SD card only** — see storage below. Serial console differs (§6). No fan control or temperature reading: [docs/pi5.md](docs/pi5.md) |
 | **Pi 4 / CM4 / 400** | supported | The model Fedora CoreOS documents; boots from USB too |
 | Pi 500, CM5 | **boots, but no network** | The kernel ships no upstream device tree for them, so they keep the fault [docs/pi5.md](docs/pi5.md) fixes for the Model B |
 | Pi 3 / Zero 2 W | **cannot boot** | Its ROM reads MBR only; this image is GPT, so nothing is ever loaded. Tested, not assumed. Firmware and DTBs ship regardless — one package covers every model |
@@ -108,7 +108,7 @@ instead.
 | `PI_SSH_KEY` | One public key, authorised for `core`. The whole line from your `.pub` file |
 | `PI_PASSWORD_HASH` | Replaces the `core` password. A **hash**, from `mkpasswd -m yescrypt` — a plaintext value is refused, not silently set |
 | `PI_TIMEZONE` | IANA name, e.g. `Europe/Copenhagen` |
-| `PI_WIFI_SSID`, `PI_WIFI_PSK` | Joins a wireless network. **Pi 4 only** — a Pi 5 has no working wireless ([docs/pi5.md](docs/pi5.md)). Wired is more predictable for anything that matters |
+| `PI_WIFI_SSID`, `PI_WIFI_PSK` | Joins a wireless network. Wired is more predictable for anything that matters |
 | `PI_TAILSCALE_AUTHKEY` | Joins a tailnet unattended. Use a single-use key |
 | `PI_WIPE_SECRETS` | `1` by default: blanks the password, PSK and auth key from the card once applied |
 
