@@ -49,6 +49,10 @@ done
 # the per-model sections are how the firmware picks the right settings. Losing
 # either is silent: a Pi 4 would still boot.
 check "bcm2712 (Pi 5) firmware was installed" grep -q '^bcm2712-firmware' "$FW/.versions"
+# The Pi 5 trees come from the kernel, so `pi-core-firmware versions` has to be
+# able to say which one — INSTALL tells the owner a kernel bump drifts the ESP.
+check "the Pi 5 device-tree kernel is recorded" \
+    grep -qE '^pi5-device-trees: kernel [0-9]' "$FW/.versions"
 for section in pi4 pi5; do
     check "config.txt keeps its [$section] section" grep -qE "^\[${section}\]" "$FW/config.txt"
 done

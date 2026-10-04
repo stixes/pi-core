@@ -177,5 +177,7 @@ And one trap in the other direction: **`sync` deliberately keeps an existing
 `config.txt`**, so it will write the new device trees but leave an old, active
 `dtoverlay=vc4-kms-v3d-pi5` line in place — upstream tree, downstream overlay,
 straight back into the probe loop. A card flashed before this change therefore
-cannot be repaired by `sync` alone; it needs a reflash, or the overlay line
-commented out by hand on the ESP.
+cannot be repaired by `sync` alone; it needs a reflash, or a `sync` *followed
+by* commenting that line out by hand on the ESP. Commenting it out on its own
+is not a repair either — the card would still be carrying the firmware's
+device trees, so RP1 would stay unbound.
