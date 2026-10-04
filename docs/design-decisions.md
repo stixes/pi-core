@@ -75,11 +75,15 @@ Two further install-time details:
 
 - **`--filesystem xfs`** must be passed: the image declares mount specs but no
   root filesystem type, because `coreos-installer` never needed bootc to know.
-- **`--target-no-signature-verification`**, because the image's bootc config
-  sets `enforce-container-sigpolicy` and the policy it ships carries no entry
-  for our cosign key. The image is verified out of band instead. Wiring the key
-  into `policy.json` is the outstanding follow-up, and it matters for
-  `bootc upgrade` on the device as much as for install.
+- **No `--target-no-signature-verification`**, and its absence changes nothing.
+  `bootc install` never verifies a signature: it installs from local
+  containers-storage and pins that source to an insecure policy, because the
+  image is already pulled and verified out of band. What the install *does* do
+  is record `ostree-image-signed:` in the deployment origin, because the image
+  sets `enforce-container-sigpolicy` — and the policy the image ships, scoped
+  to this repository and carrying our cosign key, is what makes that record
+  mean something on the first `bootc upgrade`. Why install stays unverified and
+  what covers it instead: requirements.md §8.
 
 The ESP firmware is copied out of the image's own stash rather than downloaded
 again, so what `pi-core-firmware check` compares are two copies of the same

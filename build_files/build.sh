@@ -77,6 +77,7 @@ CFGEOF
 # Pi 500 and the CM5 variants keep their downstream trees: the kernel ships no
 # upstream equivalent, so they keep the RP1 bug. Pi 4 is untouched on purpose --
 # `[pi4] dtoverlay=upstream-pi4` already converts its tree and it works today.
+PI5_DTB_KVER=""
 replace_dtb() {  # <stash name> <kernel name> <expected stepping>
     local want="$1" from="$2" stepping="$3" other src
     [[ "${stepping}" == "c0" ]] && other=d0 || other=c0
@@ -115,6 +116,7 @@ replace_dtb() {  # <stash name> <kernel name> <expected stepping>
     ! grep -qaE "bcm2712${other}-[a-z-]*pinctrl" "${src}" \
         || { echo "FATAL: ${from} carries ${other} pinctrl too; stepping is ambiguous" >&2; exit 1; }
 
+    PI5_DTB_KVER="${src#/usr/lib/modules/}"; PI5_DTB_KVER="${PI5_DTB_KVER%%/*}"
     cp "${src}" "${FW_STASH}/${want}"
     echo "::: ${want} <- ${src} (${stepping})"
 }
@@ -131,6 +133,12 @@ sed -i '/^\[pi5\]/,/^\[/ s/^dtoverlay=vc4-kms-v3d-pi5,cma-256$/#&  # pi-core: pr
 # Record what we shipped so the on-device checker can compare versions.
 rpm -q bcm283x-firmware bcm2711-firmware bcm2712-firmware bcm2835-firmware \
        bcm283x-overlays uboot-images-armv8 > "${FW_STASH}/.versions"
+# The Pi 5 device trees come from the kernel rather than a firmware package, so
+# record which one. Without it `pi-core-firmware versions` cannot say what the
+# stashed trees correspond to, while INSTALL tells the owner a kernel bump
+# drifts the ESP. The file is only ever cat'd -- check and sync both skip it --
+# so an extra line costs nothing.
+echo "pi5-device-trees: kernel ${PI5_DTB_KVER}" >> "${FW_STASH}/.versions"
 
 # Drop the packages again; only the stash should survive into the image.
 dnf5 remove -y bcm283x-firmware bcm2711-firmware bcm2712-firmware \

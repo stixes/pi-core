@@ -268,7 +268,6 @@ Not yet proven, and worth saying so rather than implying otherwise:
 - **Pi 5 C0 silicon.** Only D0 (Rev 1.1, `d04171`) has run this. The C0 tree is
   shipped and asserted, but that tree-and-silicon pairing has never booted, and
   getting a stepping wrong panics the board rather than degrading.
-
 - **Unattended growth from a fresh card.** Proven by hand and proven to
   no-op correctly, but the 5.5 GB -> full-card path has not run untouched on a
   first boot since it was fixed.

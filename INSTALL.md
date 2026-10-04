@@ -215,8 +215,10 @@ release apart.
 
 Note that sync **keeps your `config.txt`**, by design. That is what protects
 your edits, but it also means sync alone cannot undo a stale `[pi5]` display
-overlay: a card flashed before the Pi 5 fix needs a reflash, or that line
-commented out by hand ([docs/pi5.md](docs/pi5.md)).
+overlay: a card flashed before the Pi 5 fix needs a reflash, or a sync
+*followed by* commenting that line out by hand. Commenting it out without
+syncing first fixes nothing, because the old device trees would still be on the
+card ([docs/pi5.md](docs/pi5.md)).
 
 ## 6. Serial console
 
