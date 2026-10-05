@@ -108,20 +108,39 @@ cosign verify --key cosign.pub "ghcr.io/$(./scripts/repo-owner.sh)/pi-core:stabl
 
 ## Release cycle
 
-Development lands on main and goes to `:testing`, which is what the Pi tracks
-between releases. A release is a deliberate, separate act:
+**Main is for preparing a release, not for development.** Features are built on
+branches; main is where a release is assembled once the owner wants one. If no
+release is being prepared, there is no reason to merge.
 
-1. Changes are developed and pushed to main. Every push builds `:testing`.
-2. Test on hardware from `:testing`, no reflash needed:
+1. Work happens on a feature branch, as a PR. A PR build runs tiers 0 and 1 on
+   a native arm64 runner and **publishes nothing**, so it cannot move a tag any
+   device follows.
+2. Hardware-test the branch before proposing anything. What that takes depends
+   on the change: a flashable image for anything in the boot chain, and for
+   anything above it the switch in step 6.
+3. When something significant has accumulated, *suggest* a release.
+4. **The owner asks for the merge.** Never merge or push to main unprompted —
+   not to "get it onto `:testing`", not because CI is green, not because the
+   change looks finished. Green CI is evidence, not authorisation.
+5. Merging to main builds and publishes `:testing`, which is what a Pi tracks
+   between releases.
+6. Hardware-test from `:testing`, no reflash needed for anything above the boot
+   chain:
    `bootc switch --enforce-container-sigpolicy ghcr.io/<owner>/pi-core:testing`
-3. When something significant has accumulated, *suggest* a release. Cutting one
-   is the owner's call, never automatic.
-4. The owner requests it, or approves the suggestion.
-5. `git tag -a v<counter>.<YYYYMMDD> && git push --tags` — CI **rebuilds that
+7. The owner asks for the release.
+8. `git tag -a v<counter>.<YYYYMMDD> && git push --tags` — CI **rebuilds that
    commit**, publishes `:stable`, builds and signs the flashable `.img`, and
    cuts the release. Annotate it: the release notes are read from the tag
    object, and a lightweight tag has no message to read.
-6. Back to 1.
+9. Back to 1.
+
+**`just ci` publishes `:testing`.** It dispatches the workflow on the branch,
+and a `workflow_dispatch` is not a `pull_request`, so the push and sign steps
+run and `:testing` moves — on a *branch*. The recipe's own comment claims
+otherwise; `publish_image` gates only the flashable-image job, not the
+container push. Use a PR to test a branch. The same applies to any manual
+`publish_image` run: it moves `:testing` too, and tags its prerelease
+`image-<date>-<time>`.
 
 ### Versions are dated, not semantic
 
@@ -186,6 +205,12 @@ freeze what the nightly rebuild exists to pick up.
 
 ## Rules
 
+- **Nothing reaches main unless the owner asks for it.** Work on a branch, open
+  a PR, test on hardware, and then *wait*. A merge is not implied by green CI,
+  by a finished-looking change, by permission to touch the hardware, or by any
+  instruction that mentions `:testing` — `:testing` is a consequence of merging,
+  not a reason to merge. If no release is being prepared, there is nothing to
+  merge for. Ask, and take silence as no.
 - **aarch64 only.** `build.sh` asserts the arch and fails loudly; do not
   "fix" that by relaxing it.
 - **`pi-core.env` must be bare `KEY=value`** — no quotes, no inline comments.
