@@ -78,10 +78,14 @@ ci:
     set -euo pipefail
     branch="$(git rev-parse --abbrev-ref HEAD)"
     git push -u origin "$branch"
-    # Dispatch explicitly: the workflow's push trigger only covers main, so a
-    # branch push alone would run nothing. publish_image stays false, so this
-    # builds and tests without cutting a release.
-    gh workflow run "Build pi-core" --ref "$branch"
+    # Open a PR rather than dispatching the workflow. A workflow_dispatch is not
+    # a pull_request, so the push and sign steps run and `:testing` moves -- from
+    # a branch, to the tag a device follows. `publish_image` gates only the
+    # flashable-image job, never the container push, so there was no setting
+    # that made a dispatch safe. A PR build runs tiers 0 and 1 on the same
+    # native arm64 runner and publishes nothing.
+    gh pr view "$branch" >/dev/null 2>&1 \
+        || gh pr create --fill --base main --head "$branch"
     for _ in $(seq 1 30); do
         id="$(gh run list --workflow 'Build pi-core' --branch "$branch" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
         [[ -n "$id" ]] && break
