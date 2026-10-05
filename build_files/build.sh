@@ -34,6 +34,57 @@ cp -a /boot/efi/. "${FW_STASH}/"
 # Fedora's config.txt says `kernel=rpi-u-boot.bin`, so match that name.
 cp -P /usr/share/uboot/rpi_arm64/u-boot.bin "${FW_STASH}/rpi-u-boot.bin"
 
+# Teach U-Boot to boot from NVMe, by patching its built-in default environment.
+#
+# U-Boot already has everything it needs -- `brcm,bcm2712-pcie`, the nvme
+# commands, an `u-boot,bootdev-nvme` bootdev, and a preboot that runs
+# `pci enum; usb start; nvme scan` -- but `bootcmd` is `bootflow scan` and
+# bootstd takes its order from `boot_targets`, which does not list nvme. So a
+# Pi 5 booting off an NVMe reaches the U-Boot banner and stops: the firmware
+# loaded U-Boot from the drive, and U-Boot then had nowhere it was willing to
+# look. Measured on hardware.
+#
+# The obvious fix -- a `uboot.env` on the ESP -- cannot work. Fedora's rpi
+# U-Boot reads its environment from FAT on *mmc*, so a machine with no SD card
+# can never load the file that would tell it to boot without an SD card.
+# Rebuilding U-Boot is the alternative, and it means owning a bootloader build
+# and its updates forever to change sixteen bytes.
+#
+# `boot_targets` lives in the compiled-in default environment, which is a plain
+# NUL-separated string blob with no checksum over it -- unlike a *stored*
+# environment, which is CRC-protected. So it can be edited in place, provided
+# the replacement is exactly as long. It is:
+#
+#   boot_targets=mmc usb pxe dhcp   (29 bytes, stock)
+#   boot_targets=mmc nvme usb pxe   (29 bytes, ours)
+#
+# `mmc` stays first so a card still wins when one is present, matching the
+# order the Pi's own EEPROM uses. `dhcp` is what makes room; `pxe` is kept, and
+# nothing here netboots.
+#
+# If Fedora ever changes that default, this fails the build rather than
+# silently shipping an image that cannot boot from NVMe.
+python3 - "${FW_STASH}/rpi-u-boot.bin" <<'PYEOF'
+import sys, pathlib
+
+path = pathlib.Path(sys.argv[1])
+old = b"boot_targets=mmc usb pxe dhcp"
+new = b"boot_targets=mmc nvme usb pxe"
+assert len(old) == len(new), "replacement must not change the binary's length"
+
+data = bytearray(path.read_bytes())
+found = data.count(old)
+if found != 1:
+    sys.exit(
+        f"FATAL: expected exactly one {old!r} in u-boot.bin, found {found}. "
+        "Fedora's default environment changed; re-check the NVMe boot patch."
+    )
+i = data.find(old)
+data[i:i + len(old)] = new
+path.write_bytes(bytes(data))
+print(f"::: u-boot boot_targets patched at 0x{i:x}: {new.decode()}")
+PYEOF
+
 # Let config.txt have a say in the display, which is where a Pi user expects to
 # find it. Fedora sets disable_fw_kms_setup=1, which stops the firmware setting
 # up the display and passing a mode to the kernel.

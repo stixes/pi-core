@@ -57,6 +57,33 @@ for section in pi4 pi5; do
     check "config.txt keeps its [$section] section" grep -qE "^\[${section}\]" "$FW/config.txt"
 done
 
+head_ "U-Boot can boot from NVMe"
+# U-Boot has the PCIe driver, the nvme commands and a preboot that scans them,
+# but bootstd orders from boot_targets -- and the stock value omits nvme, so a
+# board booting off an NVMe reaches the banner and stops. We patch the compiled
+# default environment in place; see build.sh for why a uboot.env cannot work.
+UB="$FW/rpi-u-boot.bin"
+if [[ ! -e "$UB" ]]; then
+    fail "rpi-u-boot.bin missing from $FW"
+elif grep -qa 'boot_targets=mmc nvme usb pxe' "$UB"; then
+    pass "boot_targets lists nvme"
+else
+    fail "boot_targets does not list nvme — an NVMe-only board would not boot"
+fi
+# And the stock value must be gone. Both strings present would mean the patch
+# landed somewhere harmless while the real default still says mmc-only.
+if grep -qa 'boot_targets=mmc usb pxe dhcp' "$UB"; then
+    fail "the stock boot_targets is still present — the patch did not replace it"
+else
+    pass "the stock mmc-only boot_targets is gone"
+fi
+# mmc first, so a card still wins when one is present.
+if grep -qa 'boot_targets=mmc ' "$UB"; then
+    pass "mmc is still first in the boot order"
+else
+    fail "mmc is no longer first — an SD card would stop taking priority"
+fi
+
 head_ "Pi 5 device trees (the firmware's describe no RP1)"
 # The stashed bcm2712 Model B trees are the kernel's, not the firmware's: the
 # firmware's carry no RP1 description, so rp1_pci probes -EINVAL and a Pi 5
