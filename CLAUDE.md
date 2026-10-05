@@ -66,7 +66,7 @@ in `tests/` — see the avahi/`.local` guard for the pattern.
 just                        # list recipes
 just build                  # local aarch64 build (qemu on x86; slow but works)
 just test                   # tier 0 (static) — fast, no build
-just ci                     # push the branch; CI builds + tests on arm64
+just ci                     # push the branch, open a PR; CI builds + tests on arm64
 just test-supply-chain      # tier 1.5 — the published image
 just test-hardware <host>   # tier 3 — a booted Pi, over SSH, read-only
 just inspect                # sanity-check the built image
@@ -134,12 +134,13 @@ release is being prepared, there is no reason to merge.
    object, and a lightweight tag has no message to read.
 9. Back to 1.
 
-**`just ci` publishes `:testing`.** It dispatches the workflow on the branch,
-and a `workflow_dispatch` is not a `pull_request`, so the push and sign steps
-run and `:testing` moves — on a *branch*. The recipe's own comment claims
-otherwise; `publish_image` gates only the flashable-image job, not the
-container push. Use a PR to test a branch. The same applies to any manual
-`publish_image` run: it moves `:testing` too, and tags its prerelease
+**Only a PR build publishes nothing.** A `workflow_dispatch` is not a
+`pull_request`, so its push and sign steps run and `:testing` moves — from a
+*branch*, to the tag a device follows. `publish_image` gates only the
+flashable-image job, never the container push, so no setting makes a dispatch
+safe. `just ci` therefore opens a PR rather than dispatching, and
+`tests/static.sh` fails if it goes back to dispatching. A manual
+`publish_image` run has the same effect and additionally tags its prerelease
 `image-<date>-<time>`.
 
 ### Versions are dated, not semantic

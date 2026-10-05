@@ -97,6 +97,15 @@ head_ "the build can compute a version"
 # `git describe --tags` needs tags and history in the *build* job. Without them
 # it falls back to a bare sha and the banner ships without a release version --
 # which happened, because the edit adding this was a silent no-op.
+# `just ci` must not dispatch the workflow. A workflow_dispatch is not a
+# pull_request, so the push and sign steps run and `:testing` moves -- from a
+# branch, to the tag a device follows. Only a PR build publishes nothing.
+if awk '/^ci:/,/^[a-z-]+:/' justfile | grep -q 'gh workflow run'; then
+    fail "just ci dispatches the workflow, which publishes :testing from a branch"
+else
+    pass "just ci does not dispatch (it cannot publish :testing)"
+fi
+
 # A publish_image run tags its prerelease `image-<date>-<time>`. If describe is
 # not restricted to release tags it will prefer that, and PI_CORE_VERSION stops
 # matching what tier 1 accepts -- breaking every build after the first manual
