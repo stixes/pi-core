@@ -296,6 +296,13 @@ silicon-stepping trap. Shipping the RP1 drivers was never the hard part.
 
 Not yet proven, and worth saying so rather than implying otherwise:
 
+- **A Pi 4 on anything recent.** The reference board last booted an image from
+  early September; its card was repurposed for the Pi 5 work and never flashed
+  back. Every file a Pi 4 *reads* is byte-identical to v1.20260928, and tier 1
+  fails if the Pi 4 device tree is ever replaced, so the boot chain is sound by
+  construction — but nothing above it has been exercised on that board in
+  weeks, and it is the model this project calls its reference path.
+
 - **Installation is unsigned, and stays that way.** `bootc upgrade` verifies
   our cosign signature (proven on hardware, with negative controls). `bootc
   install` never verifies: it installs from local containers-storage, which it
