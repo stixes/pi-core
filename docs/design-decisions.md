@@ -271,6 +271,42 @@ Pi 4 tree is replaced too.
 Full account, including the panic signature and how to diagnose it on hardware:
 [pi5.md](pi5.md).
 
+## U-Boot's boot order is patched, not configured
+
+`boot_targets` decides what `bootflow scan` will look at, and the stock value
+omits `nvme`. Everything else needed is already compiled in — the
+`brcm,bcm2712-pcie` driver, the `nvme` commands, a `u-boot,bootdev-nvme`
+bootdev, and a `preboot` that runs `nvme scan`. So a Pi 5 booting off an NVMe
+reaches the U-Boot banner and then stops, having loaded U-Boot from a drive it
+will not then boot from. The build rewrites that one variable inside
+`rpi-u-boot.bin`.
+
+Editing a vendored binary deserves justification, so: the two alternatives are
+worse.
+
+**A `uboot.env` on the ESP cannot work.** Fedora's rpi U-Boot reads its
+environment from FAT on *mmc*. A machine with no SD card can never load the
+file that would tell it to boot without an SD card — the fix is unreachable
+from the situation it fixes.
+
+**Building our own U-Boot** means owning a bootloader build, and its security
+updates, forever, to change sixteen bytes. The whole point of taking Fedora's
+`uboot-images-armv8` is not doing that.
+
+The edit is safe to make in place because `boot_targets` lives in the
+*compiled-in default* environment — a plain NUL-separated string blob with no
+checksum over it, unlike a stored environment, which is CRC-protected. The
+replacement is chosen to be exactly as long, so nothing moves:
+`mmc usb pxe dhcp` becomes `mmc nvme usb pxe`. `dhcp` is what makes room, `pxe`
+survives, and nothing here netboots.
+
+`mmc` stays first so a card still wins when one is present, which matches the
+order the Pi's own EEPROM uses and keeps existing behaviour unchanged.
+
+If Fedora changes that default, the build fails rather than quietly shipping an
+image that cannot boot from NVMe, and tier 1 asserts both that `nvme` is in the
+order and that the stock value is gone.
+
 ## aarch64 only, asserted at build time
 
 `build_files/build.sh` fails loudly if the build arch is not aarch64. A silently

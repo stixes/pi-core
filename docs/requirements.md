@@ -171,7 +171,7 @@ Each has an ID so tests and commit messages can name it.
 
 | Model | Status |
 |---|---|
-| Pi 5 Model B (D0) | Primary target. SD card only. Rev 1.1 / `d04171` |
+| Pi 5 Model B (D0) | Primary target. SD card, and NVMe (§8 — implemented, unproven). Rev 1.1 / `d04171` |
 | Pi 5 Model B (C0) | **Not supported.** It is handed a D0 device tree and will panic — see §8 |
 | Pi 4 / CM4 / 400 | Supported. SD or USB |
 | Pi 500, CM5 | Boot, but keep the RP1 fault — no ethernet, no USB. See §8 |
@@ -198,23 +198,6 @@ aarch64 only, asserted at build time.
 - **Fleet management, provisioning servers, config management.** pi-core
   produces a host; what runs on it is not its concern.
 - **A desktop.** No display manager, no graphical target.
-- **NVMe boot on Pi 5** — two blockers, and one of them is ours. The reason
-  given here originally was wrong and is worth not repeating: it is not that
-  U-Boot lacks PCIe. Our shipped U-Boot 2026.04 carries the
-  `brcm,bcm2712-pcie` compatible, the `pcie_brcm` driver, the `nvme` command
-  set and a `u-boot,bootdev-nvme` bootdev, and its `preboot` runs
-  `pci enum; usb start; nvme scan`, so the device is enumerated. What does not
-  happen is booting from it: `bootcmd` is `bootflow scan`, and bootstd builds
-  its scan order from `boot_targets`, which is `mmc usb pxe dhcp`.
-
-  A claim that `config.txt` must say `dtparam=pciex1` before the slot exists
-  stood here briefly and was wrong — it was reasoned from the file rather than
-  measured. On the 2026-09-07 Pi 5 boot the firmware brought the connector up
-  unasked: `brcm-pcie 1000110000.pcie: link up, 5.0 GT/s PCIe x1`, with an NVMe
-  endpoint (`10ec:5765`) enumerated behind it. The slot is live with the
-  `config.txt` we ship today. Whether U-Boot will *boot* from it is still
-  untried.
-
 - **USB boot on Pi 5** — not an open question. Our U-Boot contains no RP1
   support whatsoever (the string `rp1` does not occur in the binary) and the Pi
   5's XHCI controller sits behind the RP1 southbridge, so `usb start` finds
@@ -282,6 +265,22 @@ two should not drift apart.
 
   The mechanism, the stepping trap that panics a board, and how to diagnose it:
   [pi5.md](pi5.md).
+
+- **NVMe boot is implemented and has not booted a board yet.** The image puts
+  `nvme` in U-Boot's boot order, which is the one thing that was missing: it
+  already had the `brcm,bcm2712-pcie` driver, the `nvme` commands, a
+  `u-boot,bootdev-nvme` bootdev and a `preboot` that runs `nvme scan`, but
+  `bootcmd` is `bootflow scan` and bootstd orders from `boot_targets` — which
+  stock does not list `nvme` in. Measured consequence: a Pi 5 booting off an
+  NVMe reaches the U-Boot banner and stops.
+
+  Why it is patched into the binary rather than configured: Fedora's rpi U-Boot
+  loads its environment from FAT on **mmc**, so a machine with no SD card can
+  never read the `uboot.env` that would tell it to boot without one. See
+  design-decisions.md.
+
+  `mmc` stays first, so a card still takes priority when present. What has not
+  been shown is a board actually booting from NVMe with no card in it.
 
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s
