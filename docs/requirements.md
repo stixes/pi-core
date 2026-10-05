@@ -171,7 +171,7 @@ Each has an ID so tests and commit messages can name it.
 
 | Model | Status |
 |---|---|
-| Pi 5 Model B (D0) | Primary target. SD card, and NVMe (§8 — implemented, unproven). Rev 1.1 / `d04171` |
+| Pi 5 Model B (D0) | Primary target. **SD card only** — NVMe does not boot, see §8. Rev 1.1 / `d04171` |
 | Pi 5 Model B (C0) | **Not supported.** It is handed a D0 device tree and will panic — see §8 |
 | Pi 4 / CM4 / 400 | Supported. SD or USB |
 | Pi 500, CM5 | Boot, but keep the RP1 fault — no ethernet, no USB. See §8 |
@@ -266,21 +266,35 @@ two should not drift apart.
   The mechanism, the stepping trap that panics a board, and how to diagnose it:
   [pi5.md](pi5.md).
 
-- **NVMe boot is implemented and has not booted a board yet.** The image puts
-  `nvme` in U-Boot's boot order, which is the one thing that was missing: it
-  already had the `brcm,bcm2712-pcie` driver, the `nvme` commands, a
-  `u-boot,bootdev-nvme` bootdev and a `preboot` that runs `nvme scan`, but
-  `bootcmd` is `bootflow scan` and bootstd orders from `boot_targets` — which
-  stock does not list `nvme` in. Measured consequence: a Pi 5 booting off an
-  NVMe reaches the U-Boot banner and stops.
+- **NVMe boot does not work, and is parked.** A Pi 5 will not boot from an
+  NVMe drive. The image ships one necessary piece of the fix and that piece is
+  not sufficient; what is missing is not known, and finding out needs a serial
+  console.
 
-  Why it is patched into the binary rather than configured: Fedora's rpi U-Boot
-  loads its environment from FAT on **mmc**, so a machine with no SD card can
-  never read the `uboot.env` that would tell it to boot without one. See
-  design-decisions.md.
+  What was fixed: `boot_targets` did not list `nvme`, so bootstd never looked
+  there — `bootcmd` is `bootflow scan` and it takes its order from that
+  variable. Everything else was already present: the `brcm,bcm2712-pcie`
+  driver, the `nvme` commands, a `u-boot,bootdev-nvme` bootdev, and a `preboot`
+  that runs `nvme scan`. The build now patches `boot_targets` in U-Boot's
+  compiled-in default environment; design-decisions.md explains why it is
+  patched rather than configured.
 
-  `mmc` stays first, so a card still takes priority when present. What has not
-  been shown is a board actually booting from NVMe with no card in it.
+  What is still wrong, measured rather than assumed: with `nvme` in the boot
+  order, U-Boot **reaches the NVMe bootdev, declines it, and moves on** — it
+  does not hang. Proven by putting `nvme` first on a machine that still had its
+  card: it tried the drive, found nothing bootable, fell through to `mmc` and
+  booted normally. So U-Boot can see the drive; it just gets no bootflow from
+  it. `nvme scan` itself is fine, and runs on every successful boot.
+
+  Why it stops here: U-Boot's progress output goes to the serial console, not
+  to HDMI — the screen shows only its splash. Every symptom from an NVMe-only
+  attempt is therefore indistinguishable from every other, and no amount of
+  rebooting adds information. The next step is a serial console on the Pi 5
+  debug connector, and nothing before that is worth trying.
+
+  The `boot_targets` patch is kept rather than reverted: it is correct, it is a
+  genuine prerequisite, and reverting it only means rediscovering it later. Its
+  cost today is a few seconds of failed attempt on boards that have a drive.
 
 - **Rebasing an existing Fedora CoreOS host onto pi-core is untested and
   probably broken.** The image's `/etc/fstab` assumes `bootc install`'s

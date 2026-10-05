@@ -304,8 +304,15 @@ survives, and nothing here netboots.
 order the Pi's own EEPROM uses and keeps existing behaviour unchanged.
 
 If Fedora changes that default, the build fails rather than quietly shipping an
-image that cannot boot from NVMe, and tier 1 asserts both that `nvme` is in the
-order and that the stock value is gone.
+image whose boot order is not what this section describes, and tier 1 asserts
+both that `nvme` is in the order and that the stock value is gone.
+
+**This is necessary and not sufficient, and the feature is parked.** With
+`nvme` in the order, U-Boot reaches the NVMe bootdev, declines it and moves on
+— it sees the drive and gets no bootflow from it. The patch is kept because it
+is correct and a genuine prerequisite; what is missing beyond it is unknown and
+needs a serial console to find, since U-Boot's progress output never reaches
+HDMI. requirements.md §8 has the measurements.
 
 ## aarch64 only, asserted at build time
 

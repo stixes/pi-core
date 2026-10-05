@@ -35,12 +35,13 @@ ostree deployments are write-heavy and none of this is write-tuned, so an SD
 card will wear out faster than you would like.
 
 - **Pi 4:** prefer an SSD over USB. It boots from USB with a current EEPROM.
-- **Pi 5: SD card, or NVMe.** The image puts `nvme` in U-Boot's boot order, so
-  a drive in the M.2 slot can be written with the same `.img` and booted with
-  no card present — **implemented but not yet proven on hardware**, see
-  [requirements.md](docs/requirements.md) §8. An SD card still takes priority
-  when one is in the slot. USB remains a firm no: that U-Boot has no RP1 driver
-  at all, and the Pi 5's USB hangs off RP1.
+- **Pi 5: SD card only.** A drive in the M.2 slot will not boot, even though
+  the image lists `nvme` in U-Boot's boot order — U-Boot sees the drive and
+  gets nothing bootable from it. Tracked in
+  [requirements.md](docs/requirements.md) §8; the slot is still usable as
+  storage once the machine is up. USB is a firmer no: that U-Boot has no RP1
+  driver at all, and the Pi 5's USB hangs off RP1. Use a good endurance-rated
+  card and expect to replace it.
 
 ## 1. Flash the image
 
